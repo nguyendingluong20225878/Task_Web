@@ -1,0 +1,7 @@
+src/lib.rs: "Cổng chào" của Program. Nơi định nghĩa các API (entry points) để phía Frontend gọi vào.
+
+src/errors.rs: Định nghĩa các mã lỗi riêng của hệ thống (ví dụ: "Chưa đến hạn nộp bài").
+
+src/state/: Nơi định nghĩa cấu trúc dữ liệu sẽ lưu xuống Blockchain (Schema của Database).
+
+src/instructions/: Chứa logic xử lý chi tiết cho từng hành động (Business Logic).

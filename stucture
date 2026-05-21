@@ -1,0 +1,35 @@
+task_web/
+├── programs/                               # Solana Smart Contracts (Anchor)
+│   └── task_contract/
+│       ├── src/
+│       │   ├── instructions/               # Logic từng tính năng
+│       │   │   ├── initialize_task.rs      # Requestor tạo task + nạp USDC
+│       │   │   ├── stake_to_unlock.rs      # Worker stake SOL 
+│       │   │   ├── submit_work.rs          # Worker nộp kết quả (IPFS CID)
+│       │   │   ├── judge_vote.rs           # Judge thực hiện vote
+│       │   │   └── settle_payment.rs       # Quyết toán và chia thưởng
+│       │   ├── state/                      # Cấu trúc dữ liệu On-chain
+│       │   │   ├── task.rs                 # State của Task (Status, Vault, v.v.)
+│       │   │   └── escrow.rs               # Quản lý số dư bị khóa
+│       │   ├── errors.rs                   # Custom Error codes
+│       │   └── lib.rs                      # Entry point của Program
+├── app/                                    # Frontend (Next.js)
+│   ├── src/
+│   │   ├── components/                     # UI Components
+│   │   │   ├── TaskCard/
+│   │   │   ├── EscrowModal/
+│   │   │   └── VotingPanel/
+│   │   ├── hooks/                          # React Hooks kết nối Blockchain
+│   │   │   ├── useTaskProgram.ts           # Gọi các instruction của Anchor
+│   │   │   ├── useEncryption.ts            # Xử lý TweetNaCl / mã hóa
+│   │   │   └── useIPFS.ts                  # Xử lý upload/download file
+│   │   ├── app/                            # Next.js App Router
+│   │   │   ├── (roles)/
+│   │   │   │   ├── requestor/page.tsx
+│   │   │   │   ├── worker/page.tsx
+│   │   │   │   └── judge/page.tsx
+│   │   ├── utils/                          
+│   │   │   ├── web3.ts                     # Cấu hình connection
+│   │   │   └── crypto.ts                   # Hàm mã hóa/giải mã dữ liệu
+└── tests/                                  # Integration Tests (Mocha/Chai hoặc Rust)
+    ├── xaam_contract.ts                    # Test kịch bản End-to-End
