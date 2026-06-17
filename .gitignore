@@ -1,7 +1,38 @@
-.anchor
+.env
 .DS_Store
-target
+node_modules/
+.next/
+.svelte-kit/
+
+# --- Anchor / Rust ---
+target/*
+!target/idl/
+!target/idl/task_contract.json
+!target/types/
+!target/types/task_contract.ts
 **/*.rs.bk
-node_modules
-test-ledger
-.yarn
+
+# Chặn triệt để ledger phát sinh khi chạy test validator
+test-ledger/
+.anchor/
+
+# --- Bảo mật Keypair (QUAN TRỌNG) ---
+# Chặn tất cả các file private key dạng JSON trong dự án để tránh lộ mã ví
+*-keypair.json
+programs/**/*.json
+tests/**/*.json
+# Phủ định lại các file config hệ thống bắt buộc phải giữ
+!package.json
+!tsconfig.json
+
+# --- Biến môi trường (QUAN TRỌNG) ---
+.env
+.env.local
+.env.*.local
+*.env
+
+# --- Các file rác hệ điều hành & IDE ---
+.vscode/
+.idea/
+Thumbs.db
+.yarn/

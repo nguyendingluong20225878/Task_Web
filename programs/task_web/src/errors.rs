@@ -14,6 +14,8 @@ pub enum TaskError {
     AlreadyVoted,
     #[msg("Voting is still active or threshold not reached.")]
     VotingNotComplete,
+    #[msg("Settlement outcome is not decisive.")]
+    SettlementNotDecisive,
     #[msg("Not an assigned judge for this task.")]
     NotAssignedJudge,
     #[msg("Not enough active judges in the pool.")]
@@ -26,6 +28,8 @@ pub enum TaskError {
     DuplicateJudge,
     #[msg("Invalid configuration parameters.")]
     InvalidConfiguration,
+    #[msg("Invalid token account for this task.")]
+    InvalidTokenAccount,
     #[msg("Task has not expired yet.")]
     TaskNotExpired,
     #[msg("Unauthorized admin.")]
@@ -40,4 +44,8 @@ pub enum TaskError {
     InvalidJudgePool,
     #[msg("Unsupported randomness mode.")]
     UnsupportedRandomness,
+    #[msg("Settlement assignment set is incomplete or invalid.")]
+    AssignmentSetIncomplete,
+    #[msg("Escrow vault balance does not match the task invariant.")]
+    InvalidEscrowBalance,
 }

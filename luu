@@ -1,0 +1,304 @@
+luong@NGUYENDINHLUONG:~/task_web$ npx ts-node scripts/create-task.ts \
+  --mode=execute \
+  --id=1003 \
+  --token-mint=GW7391EnGsU5oksJPQibH8ky5iUA2njTiobhb7bjji1B \
+  --creator-token-account=D1UJ5zE7UCZpHxdTE6dvESN8bn7xjMLCRJpjxKJENNjo \
+  --bounty-amount=1000000 \
+  --worker-stake-amount=100000000 \
+  --required-judges-m=1 \
+  --approval-threshold-n=1 \
+  --public-metadata-uri=ipfs://task-1003-public \
+  --encrypted-task-detail-uri=enc://task-1003-detail \
+  --encrypted-submission-uri=
+WARN: create task record was not written: C05C4B6754740000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:../deps/openssl/openssl/ssl/record/rec_layer_s3.c:918:SSL alert number 80
+
+# CURRENT PHASE
+Phase 1: Create Task
+
+# FUNCTION
+createTask(params, mode)
+
+# FLOW
+execute: sent Anchor initialize_task, confirmed signature, attempted Atlas DB write with isSimulated=false
+
+# RESULT
+{
+  "phase": "Phase 1: Create Task",
+  "function": "createTask(params, mode)",
+  "mode": "execute",
+  "taskPda": "HEd3rNWc3tG3RbcW3hfQF2G5Xfng58MVbhAKqVWj7zjM",
+  "escrowTokenVault": "Cu3HDKJFvVdz9TBNLJPCAMdY3hKUsUhgNDREaU8535HE",
+  "nftAsset": "8vxjaKbYQP38fTNTXeDZijS4mRUgFAAPg5PyZ18Quw5u",
+  "signature": "595zXPoUC8Cd485JFV5116phW9FhRxeBvwLejwEBVwzmUfK37vPE4AvYvV68NW6pCP4eKtFezazKtaaVskz1SmM6",
+  "slot": 469557500,
+  "isSimulated": false
+}
+luong@NGUYENDINHLUONG:~/task_web$ 
+
+
+
+luong@NGUYENDINHLUONG:~/task_web$ ANCHOR_WALLET=.anchor/worker-devnet.json \
+SOLANA_RPC_URL=https://api.devnet.solana.com \
+npx ts-node scripts/phase2-stake.ts \
+  --mode=execute \
+  --task-id=1003
+# CURRENT PHASE
+Phase 2: Stake
+
+# FUNCTION
+stakeToUnlock()
+
+# FLOW
+execute: sent Anchor stake_to_unlock, confirmed signature, fetched task and worker escrow state
+
+# RESULT
+{
+  "phase": "Phase 2: Stake",
+  "function": "stakeToUnlock()",
+  "mode": "execute",
+  "taskId": "1003",
+  "taskPda": "HEd3rNWc3tG3RbcW3hfQF2G5Xfng58MVbhAKqVWj7zjM",
+  "worker": "EvR8ZguhVKPeSwtRs2DJmPabg2GN74qMgAHUkTRpPCwN",
+  "workerEscrow": "Cn4ixvUytit5Su9Kk9WufL5q5jj4jqXALq4ncT91cJKc",
+  "workerStakeAmount": "100000000",
+  "statusBefore": {
+    "open": {}
+  },
+  "statusAfter": {
+    "inProgress": {}
+  },
+  "amountStaked": "100000000",
+  "signature": "2i9px8dNCetWG4gePyyRK6nPMPesFRQGpyVtvLD7H1cqzS7uAkmcDzVH7Ev8iRfyDnAySc7DNwPfqWyeV67s5ddC",
+  "slot": 469557628,
+  "isSimulated": false
+}
+luong@NGUYENDINHLUONG:~/task_web$ 
+
+
+
+
+uong@NGUYENDINHLUONG:~/task_web$ ANCHOR_WALLET=.anchor/worker-devnet.json \
+SOLANA_RPC_URL=https://api.devnet.solana.com \
+npx ts-node scripts/phase3-submit.ts \
+  --mode=execute \
+  --task-id=1003 \
+  --encrypted-submission-uri=enc://submission-1003
+# CURRENT PHASE
+Phase 3: Submit and Assign
+
+# FUNCTION
+submitAndAssign(encryptedSubmissionUri)
+
+# FLOW
+execute: sent Anchor submit_and_assign, confirmed signature, fetched assigned judges
+
+# RESULT
+{
+  "phase": "Phase 3: Submit and Assign",
+  "function": "submitAndAssign(encryptedSubmissionUri)",
+  "mode": "execute",
+  "taskId": "1003",
+  "taskPda": "HEd3rNWc3tG3RbcW3hfQF2G5Xfng58MVbhAKqVWj7zjM",
+  "worker": "EvR8ZguhVKPeSwtRs2DJmPabg2GN74qMgAHUkTRpPCwN",
+  "systemConfig": "8LBzpZ1K9ohJBr7orvQJ2us4mS8ec9hErBPLUyuURBPL",
+  "judgeRegistry": "6TmgofyHhCYj8LEiWnwWVUMzeypkCtgkEZMc54HPEygH",
+  "judgeRecords": [
+    "3zmFp9jhDf22qi1QeZwVVBvzTbC78xvTQNR44RMyeErq"
+  ],
+  "encryptedSubmissionUri": "enc://submission-1003",
+  "statusBefore": {
+    "inProgress": {}
+  },
+  "statusAfter": {
+    "resolving": {}
+  },
+  "assignedJudgeCount": 1,
+  "assignedJudges": [
+    "CyoeWSN45WSUdrDxkvcuLp4pRDP8K3A5Df9kXTxmLcK5"
+  ],
+  "signature": "4koZ8MXzpgBW2JiVQttu7N7H4ztEuSupQWvn4EfQt15BdKTfaKSvauyp3uJCwdzc3FFYyBCgvvfdfqhL4D5Gsvpv",
+  "slot": 469559558,
+  "isSimulated": false
+}
+luong@NGUYENDINHLUONG:~/task_web$ 
+
+
+
+
+
+luong@NGUYENDINHLUONG:~/task_web$ SOLANA_RPC_URL=https://api.devnet.solana.com \
+npx ts-node scripts/phase3-init-judge-assignment.ts \
+  --mode=execute \
+  --task-id=1003
+# CURRENT PHASE
+Phase 3b: Init Judge Assignment
+
+# FUNCTION
+initJudgeAssignment()
+
+# FLOW
+execute: sent Anchor init_judge_assignment transaction(s), confirmed signature(s), fetched assignment state
+
+# RESULT
+{
+  "phase": "Phase 3b: Init Judge Assignment",
+  "function": "initJudgeAssignment()",
+  "mode": "execute",
+  "taskId": "1003",
+  "taskPda": "HEd3rNWc3tG3RbcW3hfQF2G5Xfng58MVbhAKqVWj7zjM",
+  "payer": "3GwNFgdo1Nb7tm3cJuNs7vkWHvTEdeX5MjYcriLxKR7D",
+  "statusBefore": {
+    "resolving": {}
+  },
+  "assignments": [
+    {
+      "judge": "CyoeWSN45WSUdrDxkvcuLp4pRDP8K3A5Df9kXTxmLcK5",
+      "judgeAssignment": "8bURS54qL21ZvitXVDPjrvggy6q9ysXneq7ZMsJhBMvo",
+      "assignedOrder": 0,
+      "hasVoted": false,
+      "voteIsPass": false,
+      "hasClaimedFee": false,
+      "signature": "569eN6HDFoRQ8s9MergqM9EvDeniGJvGEcT6PxZ9WCjoTUcrhm32UHGGkvoP3jhpytKX6PUAScrk7TyntqcxAfLq",
+      "slot": 469559990,
+      "isSimulated": false
+    }
+  ]
+}
+luong@NGUYENDINHLUONG:~/task_web$ 
+
+
+
+
+
+
+luong@NGUYENDINHLUONG:~/task_web$ ANCHOR_WALLET=.anchor/judge-1.json \
+SOLANA_RPC_URL=https://api.devnet.solana.com \
+npx ts-node scripts/phase4-vote.ts \
+  --mode=execute \
+  --task-id=1003 \
+  --vote=pass
+# CURRENT PHASE
+Phase 4: Judge Vote
+
+# FUNCTION
+judgeVote(isPass)
+
+# FLOW
+execute: sent Anchor judge_vote, confirmed signature, fetched task and assignment state
+
+# RESULT
+{
+  "phase": "Phase 4: Judge Vote",
+  "function": "judgeVote(isPass)",
+  "mode": "execute",
+  "taskId": "1003",
+  "taskPda": "HEd3rNWc3tG3RbcW3hfQF2G5Xfng58MVbhAKqVWj7zjM",
+  "judge": "CyoeWSN45WSUdrDxkvcuLp4pRDP8K3A5Df9kXTxmLcK5",
+  "judgeRecord": "3zmFp9jhDf22qi1QeZwVVBvzTbC78xvTQNR44RMyeErq",
+  "judgeAssignment": "8bURS54qL21ZvitXVDPjrvggy6q9ysXneq7ZMsJhBMvo",
+  "vote": "pass",
+  "statusBefore": {
+    "resolving": {}
+  },
+  "statusAfter": {
+    "resolving": {}
+  },
+  "passVoteCountBefore": 0,
+  "failVoteCountBefore": 0,
+  "passVoteCountAfter": 1,
+  "failVoteCountAfter": 0,
+  "hasVoted": true,
+  "voteIsPass": true,
+  "signature": "3wxpQLbMM7aQDRoHeuC81EQu78UWfKAQwxfUiBbC243hnYj3BEDojv5QnAC4kpsRwKMVy1Lyrqn7bUHNDiRtrs4t",
+  "slot": 469561160,
+  "isSimulated": false
+}
+luong@NGUYENDINHLUONG:~/task_web$ 
+
+
+
+
+
+luong@NGUYENDINHLUONG:~/task_web$ SOLANA_RPC_URL=https://api.devnet.solana.com \
+npx ts-node scripts/phase5-settle.ts \
+  --mode=execute \
+  --task-id=1003 \
+  --worker-token-account=amCvpMfnUyadfuP4FyVLujrHwn9p4P9pU6JDStWF8Lj \
+  --requestor-token-account=D1UJ5zE7UCZpHxdTE6dvESN8bn7xjMLCRJpjxKJENNjo
+# CURRENT PHASE
+Phase 5: Settle Payment
+
+# FUNCTION
+settlePayment()
+
+# FLOW
+execute: sent Anchor settle_payment, confirmed signature, fetched final task state
+
+# RESULT
+{
+  "phase": "Phase 5: Settle Payment",
+  "function": "settlePayment()",
+  "mode": "execute",
+  "taskId": "1003",
+  "taskPda": "HEd3rNWc3tG3RbcW3hfQF2G5Xfng58MVbhAKqVWj7zjM",
+  "payer": "3GwNFgdo1Nb7tm3cJuNs7vkWHvTEdeX5MjYcriLxKR7D",
+  "requestor": "3GwNFgdo1Nb7tm3cJuNs7vkWHvTEdeX5MjYcriLxKR7D",
+  "worker": "EvR8ZguhVKPeSwtRs2DJmPabg2GN74qMgAHUkTRpPCwN",
+  "workerEscrow": "Cn4ixvUytit5Su9Kk9WufL5q5jj4jqXALq4ncT91cJKc",
+  "escrowTokenVault": "Cu3HDKJFvVdz9TBNLJPCAMdY3hKUsUhgNDREaU8535HE",
+  "workerTokenAccount": "amCvpMfnUyadfuP4FyVLujrHwn9p4P9pU6JDStWF8Lj",
+  "requestorTokenAccount": "D1UJ5zE7UCZpHxdTE6dvESN8bn7xjMLCRJpjxKJENNjo",
+  "nftAsset": "8vxjaKbYQP38fTNTXeDZijS4mRUgFAAPg5PyZ18Quw5u",
+  "result": "approved",
+  "statusBefore": {
+    "resolving": {}
+  },
+  "statusAfter": {
+    "completed": {}
+  },
+  "passVoteCount": 1,
+  "failVoteCount": 0,
+  "feePerJudge": "50000",
+  "totalJudgeFeeReserved": "50000",
+  "signature": "3QncFTnxCb2n3Xqf7rQ2nXXrRSt3FzeoFqCmnNXu91J2CuiueWZ5fKya3RxF3hpodSchYoo7BFqMU1eBPyRpCZJ9",
+  "slot": 469565022,
+  "isSimulated": false
+}
+luong@NGUYENDINHLUONG:~/task_web$ ANCHOR_WALLET=.anchor/judge-1.json \
+SOLANA_RPC_URL=https://api.devnet.solana.com \
+npx ts-node scripts/phase5-claim-judge-fee.ts \
+  --mode=execute \
+  --task-id=1003 \
+  --judge-token-account=EQE5UCbk26y9qb8mmcsGzaZehhnXvhKu6fKZGhiwYdZR
+# CURRENT PHASE
+Phase 5b: Claim Judge Fee
+
+# FUNCTION
+claimJudgeFee()
+
+# FLOW
+execute: sent Anchor claim_judge_fee, confirmed signature, fetched task and assignment state
+
+# RESULT
+{
+  "phase": "Phase 5b: Claim Judge Fee",
+  "function": "claimJudgeFee()",
+  "mode": "execute",
+  "taskId": "1003",
+  "taskPda": "HEd3rNWc3tG3RbcW3hfQF2G5Xfng58MVbhAKqVWj7zjM",
+  "judge": "CyoeWSN45WSUdrDxkvcuLp4pRDP8K3A5Df9kXTxmLcK5",
+  "judgeAssignment": "8bURS54qL21ZvitXVDPjrvggy6q9ysXneq7ZMsJhBMvo",
+  "escrowTokenVault": "Cu3HDKJFvVdz9TBNLJPCAMdY3hKUsUhgNDREaU8535HE",
+  "judgeTokenAccount": "EQE5UCbk26y9qb8mmcsGzaZehhnXvhKu6fKZGhiwYdZR",
+  "status": {
+    "completed": {}
+  },
+  "feePerJudge": "50000",
+  "judgeFeeClaimed": "50000",
+  "hasClaimedFee": true,
+  "feeAmount": "50000",
+  "signature": "49tPmboJazrntEsaPac23jShKozADCTFTjvi2yRQb7kYAvv1p8WKdoSikPANCnTkcmyC6mH9zhj36saRdiUwgST4",
+  "slot": 469565637,
+  "isSimulated": false
+}
+luong@NGUYENDINHLUONG:~/task_web$ 

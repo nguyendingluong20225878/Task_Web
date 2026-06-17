@@ -1,13 +1,13 @@
-use anchor_lang::prelude::*;
-use crate::state::system::{RandomnessMode, SystemConfig};
-use crate::state::judge_pool::{JudgeRegistry, JudgeStakeVault, MAX_ACTIVE_JUDGES};
 use crate::errors::TaskError;
+use crate::state::judge_pool::{JudgeRegistry, JudgeStakeVault, MAX_ACTIVE_JUDGES};
+use crate::state::system::{RandomnessMode, SystemConfig};
+use anchor_lang::prelude::*;
 
-#[derive(Accounts)]//Định nghĩa tất cả account cần cho instruction
+#[derive(Accounts)] //Định nghĩa tất cả account cần cho instruction
 pub struct AdminInitProtocol<'info> {
     #[account(
         mut,//có thể bị thay đổi (SOL balance do trả phí init)
-        address = pubkey!("Admin11111111111111111111111111111111111111") @ TaskError::UnauthorizedAdmin
+        address = pubkey!("3GwNFgdo1Nb7tm3cJuNs7vkWHvTEdeX5MjYcriLxKR7D") @ TaskError::UnauthorizedAdmin
         //Signer bắt buộc kí tx
     )]
     pub admin: Signer<'info>,
@@ -46,20 +46,20 @@ pub struct AdminInitProtocol<'info> {
 
 pub fn handler(ctx: Context<AdminInitProtocol>, judge_fee_bps: u16) -> Result<()> {
     // ctx : context chứa toàn bộ accounts
-    require!(judge_fee_bps <= 10_000, TaskError::InvalidConfiguration);//validate input, không cho fee > 100%, 10.000 bps = 100%
-    
+    require!(judge_fee_bps <= 10_000, TaskError::InvalidConfiguration); //validate input, không cho fee > 100%, 10.000 bps = 100%
+
     //setup system config
     let config = &mut ctx.accounts.system_config;
     config.admin = ctx.accounts.admin.key();
     config.judge_fee_bps = judge_fee_bps;
-    config.max_judges_per_task = crate::state::task::MAX_JUDGES as u16;//Giới hạn số lượng judge tối đa có thể assign cho 1 task
-    config.total_active_judges = 0;//Ban đầu chưa có judge nào đăng ký
+    config.max_judges_per_task = crate::state::task::MAX_JUDGES as u16; //Giới hạn số lượng judge tối đa có thể assign cho 1 task
+    config.total_active_judges = 0; //Ban đầu chưa có judge nào đăng ký
     config.randomness_mode = RandomnessMode::BlockhashMvp;
-    config.bump = ctx.bumps.system_config;//lưu bump để verify PDA 
+    config.bump = ctx.bumps.system_config; //lưu bump để verify PDA
 
     //setup judge registry
     let registry = &mut ctx.accounts.judge_registry;
-    registry.judges = [Pubkey::default(); MAX_ACTIVE_JUDGES];//toàn bộ là 0x000..., chưa có judge nào
+    registry.judges = [Pubkey::default(); MAX_ACTIVE_JUDGES]; //toàn bộ là 0x000..., chưa có judge nào
     registry.active_count = 0;
     registry.bump = ctx.bumps.judge_registry;
 

@@ -1,7 +1,7 @@
-use anchor_lang::prelude::*;
-use crate::state::task::{Task, TaskStatus};
-use crate::state::escrow::WorkerEscrow;
 use crate::errors::TaskError;
+use crate::state::escrow::WorkerEscrow;
+use crate::state::task::{Task, TaskStatus};
+use anchor_lang::prelude::*;
 //woker nhận việc
 #[derive(Accounts)]
 pub struct StakeToUnlock<'info> {
@@ -35,7 +35,7 @@ pub fn handler(ctx: Context<StakeToUnlock>) -> Result<()> {
 
     let ix = anchor_lang::solana_program::system_instruction::transfer(
         &ctx.accounts.worker.key(),
-        &ctx.accounts.worker_escrow.key(),//Worker chuyển tiền stake vào worker escrow PDA
+        &ctx.accounts.worker_escrow.key(), //Worker chuyển tiền stake vào worker escrow PDA
         amount,
     );
     anchor_lang::solana_program::program::invoke(
@@ -52,8 +52,8 @@ pub fn handler(ctx: Context<StakeToUnlock>) -> Result<()> {
     escrow.task = task.key();
     escrow.task_id = task.id;
     escrow.amount_staked = amount;
-    escrow.is_slashed = false;//slash: hình thức phạt, khi worker bị hủy task hoặc không hoàn thành sẽ bị slash, mất một phần hoặc toàn bộ tiền stake
-    escrow.is_released = false;//chưa được giải phóng, khi task được hoàn thành và worker được trả thưởng sẽ giải phóng tiền stake, nếu task bị hủy hoặc worker không hoàn thành sẽ bị slash
+    escrow.is_slashed = false; //slash: hình thức phạt, khi worker bị hủy task hoặc không hoàn thành sẽ bị slash, mất một phần hoặc toàn bộ tiền stake
+    escrow.is_released = false; //chưa được giải phóng, khi task được hoàn thành và worker được trả thưởng sẽ giải phóng tiền stake, nếu task bị hủy hoặc worker không hoàn thành sẽ bị slash
     escrow.bump = ctx.bumps.worker_escrow;
 
     task.worker = ctx.accounts.worker.key();

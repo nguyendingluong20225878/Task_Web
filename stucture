@@ -32,4 +32,4 @@ task_web/
 │   │   │   ├── web3.ts                     # Cấu hình connection
 │   │   │   └── crypto.ts                   # Hàm mã hóa/giải mã dữ liệu
 └── tests/                                  # Integration Tests (Mocha/Chai hoặc Rust)
-    ├── xaam_contract.ts                    # Test kịch bản End-to-End
+    ├── task_contract.ts                    # Test kịch bản End-to-End

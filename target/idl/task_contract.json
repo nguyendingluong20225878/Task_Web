@@ -1,0 +1,1856 @@
+{
+  "address": "DaLMrhPAinDFFmJeeccN9nCPwFs2UNhBvDBpr6dqwjZB",
+  "metadata": {
+    "name": "task_contract",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "admin_init_protocol",
+      "discriminator": [
+        105,
+        248,
+        116,
+        159,
+        70,
+        45,
+        188,
+        80
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  121,
+                  115,
+                  116,
+                  101,
+                  109,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "judge_registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  106,
+                  117,
+                  100,
+                  103,
+                  101,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "judge_stake_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  106,
+                  117,
+                  100,
+                  103,
+                  101,
+                  95,
+                  115,
+                  116,
+                  97,
+                  107,
+                  101,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "judge_fee_bps",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "cancel_expired_task",
+      "discriminator": [
+        157,
+        17,
+        201,
+        174,
+        7,
+        197,
+        65,
+        191
+      ],
+      "accounts": [
+        {
+          "name": "requestor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "task",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task.id",
+                "account": "Task"
+              }
+            ]
+          }
+        },
+        {
+          "name": "worker_escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task.id",
+                "account": "Task"
+              },
+              {
+                "kind": "account",
+                "path": "task.worker",
+                "account": "Task"
+              }
+            ]
+          }
+        },
+        {
+          "name": "escrow_token_vault",
+          "writable": true
+        },
+        {
+          "name": "requestor_token_account",
+          "writable": true
+        },
+        {
+          "name": "nft_asset",
+          "writable": true
+        },
+        {
+          "name": "core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancel_open_task",
+      "discriminator": [
+        235,
+        176,
+        186,
+        97,
+        10,
+        106,
+        63,
+        15
+      ],
+      "accounts": [
+        {
+          "name": "requestor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "task",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task.id",
+                "account": "Task"
+              }
+            ]
+          }
+        },
+        {
+          "name": "escrow_token_vault",
+          "writable": true
+        },
+        {
+          "name": "requestor_token_account",
+          "writable": true
+        },
+        {
+          "name": "nft_asset",
+          "writable": true
+        },
+        {
+          "name": "core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim_judge_fee",
+      "discriminator": [
+        211,
+        42,
+        179,
+        176,
+        147,
+        5,
+        204,
+        47
+      ],
+      "accounts": [
+        {
+          "name": "judge",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "task",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task.id",
+                "account": "Task"
+              }
+            ]
+          }
+        },
+        {
+          "name": "judge_assignment",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107,
+                  95,
+                  106,
+                  117,
+                  100,
+                  103,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task.id",
+                "account": "Task"
+              },
+              {
+                "kind": "account",
+                "path": "judge"
+              }
+            ]
+          }
+        },
+        {
+          "name": "escrow_token_vault",
+          "writable": true
+        },
+        {
+          "name": "judge_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "init_judge_assignment",
+      "discriminator": [
+        170,
+        149,
+        175,
+        204,
+        207,
+        178,
+        193,
+        11
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "judge"
+        },
+        {
+          "name": "task",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task.id",
+                "account": "Task"
+              }
+            ]
+          }
+        },
+        {
+          "name": "judge_assignment",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107,
+                  95,
+                  106,
+                  117,
+                  100,
+                  103,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task.id",
+                "account": "Task"
+              },
+              {
+                "kind": "account",
+                "path": "judge"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_task",
+      "discriminator": [
+        96,
+        206,
+        3,
+        20,
+        245,
+        167,
+        60,
+        125
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  121,
+                  115,
+                  116,
+                  101,
+                  109,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "task",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_mint"
+        },
+        {
+          "name": "escrow_token_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task"
+              }
+            ]
+          }
+        },
+        {
+          "name": "creator_token_account",
+          "writable": true
+        },
+        {
+          "name": "nft_asset",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "id",
+          "type": "u64"
+        },
+        {
+          "name": "bounty_amount",
+          "type": "u64"
+        },
+        {
+          "name": "worker_stake_amount",
+          "type": "u64"
+        },
+        {
+          "name": "required_judges_m",
+          "type": "u16"
+        },
+        {
+          "name": "approval_threshold_n",
+          "type": "u16"
+        },
+        {
+          "name": "deadlines",
+          "type": {
+            "array": [
+              "i64",
+              2
+            ]
+          }
+        },
+        {
+          "name": "public_metadata_uri",
+          "type": "string"
+        },
+        {
+          "name": "encrypted_task_detail_uri",
+          "type": "string"
+        },
+        {
+          "name": "encrypted_submission_uri",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "judge_register",
+      "discriminator": [
+        39,
+        183,
+        202,
+        177,
+        225,
+        36,
+        69,
+        33
+      ],
+      "accounts": [
+        {
+          "name": "judge",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  121,
+                  115,
+                  116,
+                  101,
+                  109,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "judge_registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  106,
+                  117,
+                  100,
+                  103,
+                  101,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "judge_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  106,
+                  117,
+                  100,
+                  103,
+                  101,
+                  95,
+                  114,
+                  101,
+                  99,
+                  111,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "judge"
+              }
+            ]
+          }
+        },
+        {
+          "name": "judge_stake_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  106,
+                  117,
+                  100,
+                  103,
+                  101,
+                  95,
+                  115,
+                  116,
+                  97,
+                  107,
+                  101,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "stake_amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "judge_unregister",
+      "discriminator": [
+        8,
+        147,
+        247,
+        224,
+        86,
+        66,
+        106,
+        55
+      ],
+      "accounts": [
+        {
+          "name": "judge",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  121,
+                  115,
+                  116,
+                  101,
+                  109,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "judge_registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  106,
+                  117,
+                  100,
+                  103,
+                  101,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "judge_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  106,
+                  117,
+                  100,
+                  103,
+                  101,
+                  95,
+                  114,
+                  101,
+                  99,
+                  111,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "judge"
+              }
+            ]
+          }
+        },
+        {
+          "name": "judge_stake_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  106,
+                  117,
+                  100,
+                  103,
+                  101,
+                  95,
+                  115,
+                  116,
+                  97,
+                  107,
+                  101,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "judge_vote",
+      "discriminator": [
+        188,
+        220,
+        58,
+        36,
+        177,
+        17,
+        44,
+        176
+      ],
+      "accounts": [
+        {
+          "name": "judge",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "task",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task.id",
+                "account": "Task"
+              }
+            ]
+          }
+        },
+        {
+          "name": "judge_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  106,
+                  117,
+                  100,
+                  103,
+                  101,
+                  95,
+                  114,
+                  101,
+                  99,
+                  111,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "judge"
+              }
+            ]
+          }
+        },
+        {
+          "name": "judge_assignment",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107,
+                  95,
+                  106,
+                  117,
+                  100,
+                  103,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task.id",
+                "account": "Task"
+              },
+              {
+                "kind": "account",
+                "path": "judge"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "is_pass",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "settle_payment",
+      "discriminator": [
+        129,
+        7,
+        163,
+        250,
+        122,
+        226,
+        158,
+        249
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "requestor",
+          "writable": true
+        },
+        {
+          "name": "task",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task.id",
+                "account": "Task"
+              }
+            ]
+          }
+        },
+        {
+          "name": "worker_escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task.id",
+                "account": "Task"
+              },
+              {
+                "kind": "account",
+                "path": "task.worker",
+                "account": "Task"
+              }
+            ]
+          }
+        },
+        {
+          "name": "escrow_token_vault",
+          "writable": true
+        },
+        {
+          "name": "worker_token_account",
+          "writable": true
+        },
+        {
+          "name": "requestor_token_account",
+          "writable": true
+        },
+        {
+          "name": "nft_asset",
+          "writable": true
+        },
+        {
+          "name": "worker_system_account",
+          "writable": true
+        },
+        {
+          "name": "core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "stake_to_unlock",
+      "discriminator": [
+        164,
+        191,
+        97,
+        217,
+        17,
+        227,
+        199,
+        18
+      ],
+      "accounts": [
+        {
+          "name": "worker",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "task",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task.id",
+                "account": "Task"
+              }
+            ]
+          }
+        },
+        {
+          "name": "worker_escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task.id",
+                "account": "Task"
+              },
+              {
+                "kind": "account",
+                "path": "worker"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "submit_and_assign",
+      "discriminator": [
+        158,
+        174,
+        83,
+        32,
+        114,
+        4,
+        203,
+        41
+      ],
+      "accounts": [
+        {
+          "name": "worker",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "task",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task.id",
+                "account": "Task"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  121,
+                  115,
+                  116,
+                  101,
+                  109,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "judge_registry",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  106,
+                  117,
+                  100,
+                  103,
+                  101,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "encrypted_submission_uri",
+          "type": "string"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "JudgeRecord",
+      "discriminator": [
+        72,
+        138,
+        30,
+        91,
+        40,
+        248,
+        164,
+        249
+      ]
+    },
+    {
+      "name": "JudgeRegistry",
+      "discriminator": [
+        124,
+        54,
+        203,
+        109,
+        188,
+        129,
+        29,
+        209
+      ]
+    },
+    {
+      "name": "JudgeStakeVault",
+      "discriminator": [
+        92,
+        8,
+        221,
+        244,
+        117,
+        1,
+        214,
+        98
+      ]
+    },
+    {
+      "name": "SystemConfig",
+      "discriminator": [
+        218,
+        150,
+        16,
+        126,
+        102,
+        185,
+        75,
+        1
+      ]
+    },
+    {
+      "name": "Task",
+      "discriminator": [
+        79,
+        34,
+        229,
+        55,
+        88,
+        90,
+        55,
+        84
+      ]
+    },
+    {
+      "name": "TaskJudgeAssignment",
+      "discriminator": [
+        149,
+        122,
+        211,
+        115,
+        164,
+        249,
+        79,
+        144
+      ]
+    },
+    {
+      "name": "WorkerEscrow",
+      "discriminator": [
+        67,
+        33,
+        132,
+        93,
+        117,
+        5,
+        228,
+        144
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidStatus",
+      "msg": "Invalid Task Status for this operation."
+    },
+    {
+      "code": 6001,
+      "name": "InvalidStakeAmount",
+      "msg": "Worker stake amount does not match the requirement."
+    },
+    {
+      "code": 6002,
+      "name": "DeadlinePassed",
+      "msg": "Deadline has passed."
+    },
+    {
+      "code": 6003,
+      "name": "UnauthorizedWorker",
+      "msg": "Not the assigned worker or unauthorized action."
+    },
+    {
+      "code": 6004,
+      "name": "AlreadyVoted",
+      "msg": "Judge has already voted."
+    },
+    {
+      "code": 6005,
+      "name": "VotingNotComplete",
+      "msg": "Voting is still active or threshold not reached."
+    },
+    {
+      "code": 6006,
+      "name": "SettlementNotDecisive",
+      "msg": "Settlement outcome is not decisive."
+    },
+    {
+      "code": 6007,
+      "name": "NotAssignedJudge",
+      "msg": "Not an assigned judge for this task."
+    },
+    {
+      "code": 6008,
+      "name": "NotEnoughJudges",
+      "msg": "Not enough active judges in the pool."
+    },
+    {
+      "code": 6009,
+      "name": "AlreadyClaimed",
+      "msg": "Judge has already claimed the fee."
+    },
+    {
+      "code": 6010,
+      "name": "NotEligibleForFee",
+      "msg": "Judge is not eligible to claim fee for this task."
+    },
+    {
+      "code": 6011,
+      "name": "DuplicateJudge",
+      "msg": "Duplicate judge assignment is not allowed."
+    },
+    {
+      "code": 6012,
+      "name": "InvalidConfiguration",
+      "msg": "Invalid configuration parameters."
+    },
+    {
+      "code": 6013,
+      "name": "InvalidTokenAccount",
+      "msg": "Invalid token account for this task."
+    },
+    {
+      "code": 6014,
+      "name": "TaskNotExpired",
+      "msg": "Task has not expired yet."
+    },
+    {
+      "code": 6015,
+      "name": "UnauthorizedAdmin",
+      "msg": "Unauthorized admin."
+    },
+    {
+      "code": 6016,
+      "name": "StakeLocked",
+      "msg": "Judge stake is currently locked in an active task."
+    },
+    {
+      "code": 6017,
+      "name": "MathOverflow",
+      "msg": "Arithmetic overflow."
+    },
+    {
+      "code": 6018,
+      "name": "JudgeRegistryFull",
+      "msg": "Judge registry is full."
+    },
+    {
+      "code": 6019,
+      "name": "InvalidJudgePool",
+      "msg": "Invalid canonical judge pool."
+    },
+    {
+      "code": 6020,
+      "name": "UnsupportedRandomness",
+      "msg": "Unsupported randomness mode."
+    },
+    {
+      "code": 6021,
+      "name": "AssignmentSetIncomplete",
+      "msg": "Settlement assignment set is incomplete or invalid."
+    },
+    {
+      "code": 6022,
+      "name": "InvalidEscrowBalance",
+      "msg": "Escrow vault balance does not match the task invariant."
+    }
+  ],
+  "types": [
+    {
+      "name": "JudgeRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "judge",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount_staked",
+            "type": "u64"
+          },
+          {
+            "name": "is_active",
+            "type": "bool"
+          },
+          {
+            "name": "total_assignment_count",
+            "type": "u16"
+          },
+          {
+            "name": "locked_until",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "JudgeRegistry",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "judges",
+            "type": {
+              "array": [
+                "pubkey",
+                16
+              ]
+            }
+          },
+          {
+            "name": "active_count",
+            "type": "u16"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "JudgeStakeVault",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RandomnessMode",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "BlockhashMvp"
+          },
+          {
+            "name": "SwitchboardVrf"
+          },
+          {
+            "name": "CommitReveal"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SystemConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "judge_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "max_judges_per_task",
+            "type": "u16"
+          },
+          {
+            "name": "total_active_judges",
+            "type": "u32"
+          },
+          {
+            "name": "randomness_mode",
+            "type": {
+              "defined": {
+                "name": "RandomnessMode"
+              }
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Task",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "requestor",
+            "type": "pubkey"
+          },
+          {
+            "name": "worker",
+            "type": "pubkey"
+          },
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "token_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "escrow_token_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "nft_asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "bounty_amount",
+            "type": "u64"
+          },
+          {
+            "name": "judge_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "worker_stake_amount",
+            "type": "u64"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "submission_deadline",
+            "type": "i64"
+          },
+          {
+            "name": "voting_deadline",
+            "type": "i64"
+          },
+          {
+            "name": "public_metadata_uri",
+            "type": "string"
+          },
+          {
+            "name": "encrypted_task_detail_uri",
+            "type": "string"
+          },
+          {
+            "name": "encrypted_submission_uri",
+            "type": "string"
+          },
+          {
+            "name": "required_judges_m",
+            "type": "u16"
+          },
+          {
+            "name": "approval_threshold_n",
+            "type": "u16"
+          },
+          {
+            "name": "pass_vote_count",
+            "type": "u16"
+          },
+          {
+            "name": "fail_vote_count",
+            "type": "u16"
+          },
+          {
+            "name": "assigned_judge_count",
+            "type": "u16"
+          },
+          {
+            "name": "settled_judge_winner_count",
+            "type": "u16"
+          },
+          {
+            "name": "assigned_judges",
+            "type": {
+              "array": [
+                "pubkey",
+                5
+              ]
+            }
+          },
+          {
+            "name": "fee_per_judge",
+            "type": "u64"
+          },
+          {
+            "name": "total_judge_fee_reserved",
+            "type": "u64"
+          },
+          {
+            "name": "judge_fee_claimed",
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "TaskStatus"
+              }
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TaskJudgeAssignment",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "task_id",
+            "type": "u64"
+          },
+          {
+            "name": "task",
+            "type": "pubkey"
+          },
+          {
+            "name": "judge",
+            "type": "pubkey"
+          },
+          {
+            "name": "assigned_order",
+            "type": "u16"
+          },
+          {
+            "name": "assigned_at",
+            "type": "i64"
+          },
+          {
+            "name": "has_voted",
+            "type": "bool"
+          },
+          {
+            "name": "vote_is_pass",
+            "type": "bool"
+          },
+          {
+            "name": "voted_at",
+            "type": "i64"
+          },
+          {
+            "name": "has_claimed_fee",
+            "type": "bool"
+          },
+          {
+            "name": "fee_amount",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TaskStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Open"
+          },
+          {
+            "name": "InProgress"
+          },
+          {
+            "name": "Resolving"
+          },
+          {
+            "name": "Completed"
+          },
+          {
+            "name": "Failed"
+          },
+          {
+            "name": "Cancelled"
+          },
+          {
+            "name": "Inconclusive"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WorkerEscrow",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "worker",
+            "type": "pubkey"
+          },
+          {
+            "name": "task",
+            "type": "pubkey"
+          },
+          {
+            "name": "task_id",
+            "type": "u64"
+          },
+          {
+            "name": "amount_staked",
+            "type": "u64"
+          },
+          {
+            "name": "is_slashed",
+            "type": "bool"
+          },
+          {
+            "name": "is_released",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}

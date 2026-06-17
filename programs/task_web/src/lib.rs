@@ -25,7 +25,7 @@ pub mod task_contract {
     }
 
     pub fn initialize_task(
-        ctx: Context<InitializeTask>, 
+        ctx: Context<InitializeTask>,
         id: u64,
         bounty_amount: u64,
         worker_stake_amount: u64,
@@ -36,7 +36,18 @@ pub mod task_contract {
         encrypted_task_detail_uri: String,
         encrypted_submission_uri: String,
     ) -> Result<()> {
-        instructions::initialize_task::handler(ctx, id, bounty_amount, worker_stake_amount, required_judges_m, approval_threshold_n, deadlines, public_metadata_uri, encrypted_task_detail_uri, encrypted_submission_uri)
+        instructions::initialize_task::handler(
+            ctx,
+            id,
+            bounty_amount,
+            worker_stake_amount,
+            required_judges_m,
+            approval_threshold_n,
+            deadlines,
+            public_metadata_uri,
+            encrypted_task_detail_uri,
+            encrypted_submission_uri,
+        )
     }
 
     // FIX 2: Hủy task khi chưa có ai nhận (Trạng thái Open)
@@ -48,7 +59,10 @@ pub mod task_contract {
         instructions::stake_to_unlock::handler(ctx)
     }
 
-    pub fn submit_and_assign(ctx: Context<SubmitAndAssign>, encrypted_submission_uri: String) -> Result<()> {
+    pub fn submit_and_assign(
+        ctx: Context<SubmitAndAssign>,
+        encrypted_submission_uri: String,
+    ) -> Result<()> {
         instructions::submit_and_assign::handler(ctx, encrypted_submission_uri)
     }
 

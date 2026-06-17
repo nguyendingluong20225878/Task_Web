@@ -11,6 +11,7 @@ pub enum TaskStatus {
     Completed,
     Failed,
     Cancelled,
+    Inconclusive,
 }
 
 #[account]
