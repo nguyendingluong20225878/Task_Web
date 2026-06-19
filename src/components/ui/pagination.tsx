@@ -44,13 +44,13 @@ export function Pagination({
   const pages = getPageItems(currentPage, totalPages);
 
   return (
-    <div className="flex min-h-14 flex-col gap-3 rounded-lg border-2 border-slate-950 bg-[#FFFDF3] p-3 font-bold md:flex-row md:items-center md:justify-between">
-      <div className="text-sm">
+    <div className="flex min-h-16 flex-col gap-4 rounded-lg border-2 border-slate-950 bg-[#FFFDF3] p-4 font-bold md:flex-row md:items-center md:justify-between">
+      <div className="text-sm leading-6">
         Hiển thị {from}-{to} trong tổng số {total} mục
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <select
-          className="h-10 rounded-lg border-2 border-slate-950 bg-white px-3 text-sm font-extrabold outline-none focus-visible:ring-4 focus-visible:ring-[#FFD84D] focus-visible:ring-offset-2"
+          className="h-11 rounded-lg border-2 border-slate-950 bg-white px-3.5 text-sm font-extrabold outline-none focus-visible:ring-4 focus-visible:ring-[#FFD84D] focus-visible:ring-offset-2"
           value={pageSize}
           onChange={(event) => onPageSizeChange(Number(event.target.value))}
           aria-label="Số mục mỗi trang"
@@ -74,7 +74,7 @@ export function Pagination({
             item === "..." ? (
               <span
                 key={`gap-${index}`}
-                className="grid h-9 w-9 place-items-center text-sm font-black"
+                className="grid h-11 w-11 place-items-center text-sm font-black"
               >
                 ...
               </span>
@@ -82,7 +82,7 @@ export function Pagination({
               <button
                 key={item}
                 className={cn(
-                  "h-9 w-9 rounded-lg border-2 border-slate-950 bg-white text-sm font-black focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#FFD84D] focus-visible:ring-offset-2",
+                  "h-11 w-11 rounded-lg border-2 border-slate-950 bg-white text-sm font-black focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#FFD84D] focus-visible:ring-offset-2",
                   currentPage === item &&
                     "bg-[#FFD84D] shadow-[2px_2px_0_#111827]"
                 )}

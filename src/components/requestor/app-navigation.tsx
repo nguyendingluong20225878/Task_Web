@@ -19,8 +19,11 @@ import { type Role, useRoleState } from "@/lib/auth/role-state";
 import { cn } from "@/lib/utils";
 
 const WalletMultiButton = dynamic(
-  () => import("@solana/wallet-adapter-react-ui").then((mod) => mod.WalletMultiButton),
-  { ssr: false },
+  () =>
+    import("@solana/wallet-adapter-react-ui").then(
+      (mod) => mod.WalletMultiButton
+    ),
+  { ssr: false }
 );
 
 type NavItem = {
@@ -38,7 +41,12 @@ const roleLabels: Record<Role, string> = {
 
 const requestorNavItems: NavItem[] = [
   { href: "/requestor", label: "Requestor", icon: LayoutDashboard },
-  { href: "/requestor/tasks", label: "Task của tôi", icon: ClipboardList, match: "prefix" },
+  {
+    href: "/requestor/tasks",
+    label: "Task của tôi",
+    icon: ClipboardList,
+    match: "prefix",
+  },
   { href: "/requestor/submissions", label: "Submission", icon: Send },
 ];
 
@@ -72,25 +80,31 @@ export function AppNavigation() {
   const { activeRole, isRoleLoading } = useRoleState();
   const pathname = router.asPath.split("?")[0] || "/";
   const walletAddress = connected && publicKey ? publicKey.toBase58() : null;
-  const roleItems = connected && activeRole ? roleNavItems[activeRole] : [];
+  const isRequestor = activeRole === "requestor";
+  const roleItems =
+    connected && activeRole && !isRequestor ? roleNavItems[activeRole] : [];
   const navItems: NavItem[] = [
-    ...(!connected ? [{ href: "/", label: "Kết nối", icon: LayoutDashboard }] : []),
+    ...(!connected
+      ? [{ href: "/", label: "Kết nối", icon: LayoutDashboard }]
+      : []),
     ...(connected && !isRoleLoading && !activeRole
       ? [{ href: "/onboarding", label: "Chọn role", icon: UserCog }]
       : []),
     ...roleItems,
-    consoleNavItem,
+    ...(!isRequestor ? [consoleNavItem] : []),
   ];
 
   return (
     <header className="sticky top-0 z-20 border-b-[3px] border-slate-950 bg-[#F7F7F2]/95 backdrop-blur">
-      <div className="mx-auto flex w-[min(1180px,calc(100%-32px))] flex-col gap-3 py-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <Link className="text-base font-black text-slate-950" href="/">
+      <div className="mx-auto flex w-[min(1320px,calc(100%-24px))] flex-col gap-4 py-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Link className="text-lg font-black text-slate-950" href="/">
             Task Web3
           </Link>
-          <Badge>Solana Devnet</Badge>
-          {walletAddress ? <Badge>{shortenWalletAddress(walletAddress)}</Badge> : null}
+          {!isRequestor ? <Badge>Solana Devnet</Badge> : null}
+          {walletAddress ? (
+            <Badge>{shortenWalletAddress(walletAddress)}</Badge>
+          ) : null}
           {activeRole ? <Badge>Role: {roleLabels[activeRole]}</Badge> : null}
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between xl:justify-end">
@@ -107,7 +121,7 @@ export function AppNavigation() {
                   size="sm"
                 >
                   <Link
-                    className={cn("gap-2", isActive && "pointer-events-none")}
+                    className={cn("gap-2.5", isActive && "pointer-events-none")}
                     href={item.href}
                   >
                     <Icon className="size-4" />
@@ -122,14 +136,14 @@ export function AppNavigation() {
                 variant={pathname === "/onboarding" ? "default" : "secondary"}
                 size="sm"
               >
-                <Link className="gap-2" href="/onboarding?changeRole=1">
+                <Link className="gap-2.5" href="/onboarding?changeRole=1">
                   <UserCog className="size-4" />
                   Đổi role
                 </Link>
               </Button>
             ) : null}
           </nav>
-          <div className="min-h-9 [&_.wallet-adapter-button]:h-9 [&_.wallet-adapter-button]:rounded-lg [&_.wallet-adapter-button]:border-2 [&_.wallet-adapter-button]:border-slate-950 [&_.wallet-adapter-button]:bg-white [&_.wallet-adapter-button]:px-3 [&_.wallet-adapter-button]:text-xs [&_.wallet-adapter-button]:font-extrabold [&_.wallet-adapter-button]:text-slate-950 [&_.wallet-adapter-button]:shadow-[3px_3px_0_#111827]">
+          <div className="min-h-12 [&_.wallet-adapter-button]:h-12 [&_.wallet-adapter-button]:rounded-lg [&_.wallet-adapter-button]:border-2 [&_.wallet-adapter-button]:border-slate-950 [&_.wallet-adapter-button]:bg-white [&_.wallet-adapter-button]:px-4 [&_.wallet-adapter-button]:text-sm [&_.wallet-adapter-button]:font-extrabold [&_.wallet-adapter-button]:text-slate-950 [&_.wallet-adapter-button]:shadow-[3px_3px_0_#111827]">
             <WalletMultiButton />
           </div>
         </div>

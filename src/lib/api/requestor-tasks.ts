@@ -65,9 +65,9 @@ function mapIndexedStatus(status: IndexedTaskStatus): RequestorTaskStatus {
   // Resolving means submissions are closed and votes are being collected.
   if (status === "Resolving") return "Submitted";
   if (status === "Completed") return "Completed";
-  if (status === "Failed" || status === "Cancelled" || status === "Inconclusive") {
-    return "Completed";
-  }
+  if (status === "Failed") return "Failed";
+  if (status === "Cancelled") return "Cancelled";
+  if (status === "Inconclusive") return "Inconclusive";
   return "Open";
 }
 

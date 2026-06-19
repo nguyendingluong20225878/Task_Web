@@ -22,7 +22,7 @@ export async function upsertTask(db: Db, task: IndexedTask) {
 export async function upsertTaskFromChain(db: Db, snapshot: ChainTaskSnapshot) {
   const { task, slot, signature, commitment, programId, decodedAccount } =
     snapshot;
-  if (!slot || !signature || !commitment || !programId || !decodedAccount) {
+  if (slot == null || !signature || !commitment || !programId || !decodedAccount) {
     throw new Error(
       "Indexed task snapshots require slot, signature, commitment, programId, and decodedAccount."
     );
@@ -91,7 +91,7 @@ export async function insertTransaction(
 
 export async function listOpenTasks(db: Db, limit = 50) {
   return taskCollection(db)
-    .find({ status: "Open" })
+    .find({ status: "Open" }, { projection: { _id: 0 } })
     .sort({ createdAt: -1 })
     .limit(limit)
     .toArray();
@@ -105,6 +105,14 @@ export async function listTasksByRequestor(
   return taskCollection(db)
     .find({ requestor }, { projection: { _id: 0 } })
     .sort({ createdAt: -1, updatedAt: -1 })
+    .limit(limit)
+    .toArray();
+}
+
+export async function listTasksByWorker(db: Db, worker: string, limit = 50) {
+  return taskCollection(db)
+    .find({ worker }, { projection: { _id: 0 } })
+    .sort({ updatedAt: -1, createdAt: -1 })
     .limit(limit)
     .toArray();
 }

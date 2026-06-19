@@ -6,7 +6,10 @@ import type { IndexedTask, TaskStatus } from "@/lib/server/db";
 
 const { BN, BorshAccountsCoder } = anchorPkg;
 
-export const RPC_URL = "https://api.devnet.solana.com";
+export const RPC_URL =
+  process.env.SOLANA_RPC_URL ??
+  process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
+  "https://api.devnet.solana.com";
 export const COMMITMENT = "confirmed" as const;
 export const PROGRAM_ID = new PublicKey(
   "DaLMrhPAinDFFmJeeccN9nCPwFs2UNhBvDBpr6dqwjZB"

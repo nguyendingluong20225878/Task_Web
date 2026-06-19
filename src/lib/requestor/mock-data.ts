@@ -4,7 +4,10 @@ export type RequestorTaskStatus =
   | "InProgress"
   | "Submitted"
   | "Judged"
-  | "Completed";
+  | "Completed"
+  | "Failed"
+  | "Cancelled"
+  | "Inconclusive";
 
 export type SubmissionStatus =
   | "PendingJudgeReview"
@@ -116,6 +119,9 @@ export const requestorStatusLabels: Record<RequestorTaskStatus, string> = {
   Submitted: "Đã nộp",
   Judged: "Đã chấm",
   Completed: "Hoàn tất",
+  Failed: "Thất bại",
+  Cancelled: "Đã hủy",
+  Inconclusive: "Không đủ kết luận",
 };
 
 export const submissionStatusLabels: Record<SubmissionStatus, string> = {
@@ -132,6 +138,9 @@ export const requestorStatusOrder: RequestorTaskStatus[] = [
   "Submitted",
   "Judged",
   "Completed",
+  "Failed",
+  "Cancelled",
+  "Inconclusive",
 ];
 
 export const mockJudges: RequestorJudge[] = [

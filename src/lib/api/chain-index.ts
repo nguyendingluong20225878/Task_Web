@@ -1,4 +1,11 @@
-export type ChainIndexInstruction = "initialize_task" | "settle_payment";
+export type ChainIndexInstruction =
+  | "initialize_task"
+  | "settle_payment"
+  | "stake_to_unlock"
+  | "cancel_open_task"
+  | "submit_and_assign"
+  | "judge_vote"
+  | "claim_judge_fee";
 
 export type IndexTaskAfterTransactionInput = {
   taskId: string | number;

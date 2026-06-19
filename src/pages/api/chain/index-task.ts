@@ -15,6 +15,7 @@ import {
 const ALLOWED_INSTRUCTIONS = [
   "initialize_task",
   "settle_payment",
+  "stake_to_unlock",
   "cancel_open_task",
   "submit_and_assign",
   "judge_vote",
@@ -189,7 +190,7 @@ export default async function handler(
     ]);
 
     const indexedSlot = chainTask.slot ?? signatureSlot ?? clientSlot;
-    if (!indexedSlot) {
+    if (indexedSlot == null) {
       return error(
         res,
         502,

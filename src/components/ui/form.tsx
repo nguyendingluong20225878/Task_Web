@@ -5,7 +5,7 @@ export function Field({
   className,
   ...props
 }: React.HTMLAttributes<HTMLLabelElement>) {
-  return <label className={cn("grid gap-1.5", className)} {...props} />;
+  return <label className={cn("grid gap-2", className)} {...props} />;
 }
 
 export function FieldLabel({
@@ -14,7 +14,7 @@ export function FieldLabel({
 }: React.HTMLAttributes<HTMLSpanElement>) {
   return (
     <span
-      className={cn("text-xs font-black uppercase", className)}
+      className={cn("text-sm font-black uppercase tracking-wide", className)}
       {...props}
     />
   );
@@ -25,7 +25,7 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
     <input
       {...props}
       className={cn(
-        "min-h-10 w-full rounded-lg border-2 border-slate-950 bg-[#FFFDF3] px-3 py-2 outline-none focus:bg-white",
+        "min-h-12 w-full rounded-lg border-2 border-slate-950 bg-[#FFFDF3] px-3.5 py-2.5 outline-none focus:bg-white",
         "focus-visible:ring-4 focus-visible:ring-[#FFD84D] focus-visible:ring-offset-2",
         props.className
       )}

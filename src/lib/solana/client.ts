@@ -31,7 +31,8 @@ export type AnchorWalletLike = {
 const { AnchorProvider, BN, Program } = anchorPkg;
 const textEncoder = new TextEncoder();
 
-export const RPC_URL = "https://api.devnet.solana.com";
+export const RPC_URL =
+  process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
 export const PROGRAM_ID = new PublicKey("DaLMrhPAinDFFmJeeccN9nCPwFs2UNhBvDBpr6dqwjZB");
 export const DEMO_TOKEN_MINT = "GW7391EnGsU5oksJPQibH8ky5iUA2njTiobhb7bjji1B";
 export const MPL_CORE_PROGRAM_ID = new PublicKey("CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d");

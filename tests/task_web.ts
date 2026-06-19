@@ -279,7 +279,9 @@ describe("task_web QA coverage", () => {
       const code = src("instructions/judge_vote.rs");
 
       expect(code).to.include("!judge_assignment.has_voted");
-      expect(code).to.include("task.assigned_judges.iter().any");
+      expect(code).to.include("assigned_order");
+      expect(code).to.include("order < task.assigned_judge_count");
+      expect(code).to.include("task.assigned_judges[order] == judge_key");
       expect(code).to.include("current_time <= task.voting_deadline");
       expect(code).to.include("checked_add(1)");
     });

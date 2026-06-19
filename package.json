@@ -16,6 +16,7 @@
     "validator:start": "bash scripts/start-validator.sh",
     "validator:version": "solana cluster-version --url http://127.0.0.1:8899",
     "test": "ts-mocha -p ./tsconfig.json -t 1000000 tests/task_web.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
   },

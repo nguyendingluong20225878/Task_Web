@@ -15,6 +15,7 @@ import {
   Eye,
   FilePlus2,
   Lock,
+  LayoutDashboard,
   Search,
   Send,
 } from "lucide-react";
@@ -64,7 +65,12 @@ const sortLabels: Record<SortOption, string> = {
   reward: "Thưởng cao nhất",
   deadline: "Hạn gần nhất",
 };
-const PUBLIC_METADATA_URI_PREFIXES = ["ipfs://", "ar://", "https://", "local://"];
+const PUBLIC_METADATA_URI_PREFIXES = [
+  "ipfs://",
+  "ar://",
+  "https://",
+  "local://",
+];
 const ENCRYPTED_DETAIL_URI_PREFIXES = [
   "enc://",
   "ipfs://",
@@ -101,14 +107,18 @@ function toDatetimeLocal(date: Date) {
 
 function isAllowedStorageUri(value: string, prefixes: string[]) {
   const trimmed = value.trim();
-  return Boolean(trimmed) && prefixes.some((prefix) => trimmed.startsWith(prefix));
+  return (
+    Boolean(trimmed) && prefixes.some((prefix) => trimmed.startsWith(prefix))
+  );
 }
 
 function statusTone(status: RequestorTaskStatus | SubmissionStatus) {
-  if (status === "Completed" || status === "Accepted") return "bg-[#79F2C0]";
+  if (status === "Completed" || status === "Accepted")
+    return "bg-[var(--status-success)]";
   if (status === "Judged" || status === "PendingJudgeReview")
     return "bg-[#FFD84D]";
-  if (status === "Rejected") return "bg-[#FF6B8A]";
+  if (status === "Failed" || status === "Cancelled" || status === "Rejected")
+    return "bg-[var(--status-danger)]";
   if (status === "NeedsRevision") return "bg-white";
   return "bg-[#FFFDF3]";
 }
@@ -141,7 +151,11 @@ function ProofValue({
   return (
     <SoftCard className="p-3 font-bold">
       <p className="mb-1 text-xs font-black uppercase">{label}</p>
-      {href ? <ExplorerLink href={href} value={text} /> : <p className="break-all">{text}</p>}
+      {href ? (
+        <ExplorerLink href={href} value={text} />
+      ) : (
+        <p className="break-all">{text}</p>
+      )}
     </SoftCard>
   );
 }
@@ -199,7 +213,9 @@ function mergeRequestorTasks(
 
   for (const task of [...indexedTasks, ...localFallbackTasks]) {
     const key =
-      task.status === "Draft" ? task.id : task.onChainTaskId || task.taskPda || task.id;
+      task.status === "Draft"
+        ? task.id
+        : task.onChainTaskId || task.taskPda || task.id;
     if (seen.has(key)) continue;
     seen.add(key);
     merged.push(task);
@@ -325,9 +341,9 @@ function SectionHeader({
         {eyebrow ? (
           <p className="mb-1 text-xs font-black uppercase">{eyebrow}</p>
         ) : null}
-        <h1 className="text-3xl font-black">{title}</h1>
+        <h1 className="text-3xl font-black sm:text-4xl">{title}</h1>
         {description ? (
-          <p className="mt-2 max-w-3xl font-bold">{description}</p>
+          <p className="mt-2 max-w-4xl font-bold leading-7">{description}</p>
         ) : null}
       </div>
       {action}
@@ -343,7 +359,7 @@ function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <SoftCard className="grid min-h-44 place-items-center p-6 text-center">
+    <SoftCard className="grid min-h-44 place-items-center p-7 text-center">
       <div>
         <p className="text-xl font-black">{title}</p>
         <p className="mt-2 font-bold">Chưa có dữ liệu</p>
@@ -373,15 +389,17 @@ function SubmissionBadge({ status }: { status: SubmissionStatus }) {
 
 function TaskCard({ task }: { task: RequestorTask }) {
   return (
-    <SoftCard className="grid gap-3 p-4">
+    <Card tone="requestor" className="grid gap-4 p-5 sm:p-6">
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={task.status} />
             <span className="text-sm font-black">{task.id}</span>
           </div>
-          <h3 className="mt-2 text-xl font-black">{task.title}</h3>
-          <p className="mt-1 font-bold">{task.shortDescription}</p>
+          <h3 className="mt-2 text-2xl font-black leading-tight">
+            {task.title}
+          </h3>
+          <p className="mt-2 font-bold leading-7">{task.shortDescription}</p>
         </div>
         <Button asChild variant="secondary" size="sm">
           <Link href={`/requestor/tasks/${task.id}`}>
@@ -405,14 +423,59 @@ function TaskCard({ task }: { task: RequestorTask }) {
           <strong>Bài nộp:</strong> {task.submissions.length}
         </p>
       </div>
-    </SoftCard>
+    </Card>
+  );
+}
+
+function RequestorActionNavigation() {
+  const router = useRouter();
+  const pathname = router?.asPath.split("?")[0] ?? "/requestor";
+  const actions = [
+    { href: "/requestor", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/requestor/tasks", label: "Task của tôi", icon: ClipboardList },
+    { href: "/requestor/submissions", label: "Submission", icon: Send },
+  ];
+
+  return (
+    <nav
+      className="flex gap-3 overflow-x-auto pb-2 sm:flex-wrap sm:overflow-visible"
+      aria-label="Thao tác Requestor"
+    >
+      {actions.map((action) => {
+        const Icon = action.icon;
+        const active =
+          pathname === action.href ||
+          (action.href === "/requestor/tasks" &&
+            pathname.startsWith("/requestor/tasks/"));
+
+        return (
+          <Button
+            key={action.href}
+            asChild
+            tone={active ? "requestor" : "default"}
+            variant={active ? "default" : "secondary"}
+            size="sm"
+            className="shrink-0"
+          >
+            <Link
+              className={cn("gap-2.5", active && "pointer-events-none")}
+              href={action.href}
+            >
+              <Icon className="size-4" />
+              {action.label}
+            </Link>
+          </Button>
+        );
+      })}
+    </nav>
   );
 }
 
 function RequestorPageFrame({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen">
-      <div className="mx-auto flex w-[min(1180px,calc(100%-32px))] flex-col gap-4 py-7">
+    <main className="requestor-page min-h-screen">
+      <div className="mx-auto flex w-[min(1560px,calc(100%-24px))] flex-col gap-6 py-8 sm:py-10">
+        <RequestorActionNavigation />
         {children}
       </div>
     </main>
@@ -449,13 +512,13 @@ export function RequestorDashboardPage() {
 
   return (
     <RequestorPageFrame>
-      <Card className="p-5">
+      <Card tone="requestor" className="p-5 sm:p-6">
         <SectionHeader
           eyebrow="Requestor"
           title="Dashboard tổng quan"
           description="Theo dõi task đã đăng, reward đang khóa, submission mới và trạng thái payout từ một màn làm việc."
           action={
-            <Button asChild>
+            <Button asChild tone="requestor">
               <Link href="/requestor/tasks/create">
                 <FilePlus2 className="size-4" />
                 Tạo task mới
@@ -466,11 +529,11 @@ export function RequestorDashboardPage() {
       </Card>
 
       {isLoading ? (
-        <SoftCard className="p-4 font-black">Đang tải dữ liệu...</SoftCard>
+        <SoftCard className="p-5 font-black">Đang tải dữ liệu...</SoftCard>
       ) : null}
       <DataSourceWarning message={sourceWarning} />
 
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-4">
         {[
           { label: "Task đã đăng", value: tasks.length, icon: ClipboardList },
           {
@@ -487,21 +550,21 @@ export function RequestorDashboardPage() {
         ].map((item) => {
           const Icon = item.icon;
           return (
-            <Card key={item.label} className="p-4">
+            <Card tone="requestor" key={item.label} className="p-5 sm:p-6">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-black uppercase">{item.label}</p>
                 <Icon className="size-5" />
               </div>
-              <p className="mt-3 text-2xl font-black">{item.value}</p>
+              <p className="mt-3 text-3xl font-black">{item.value}</p>
             </Card>
           );
         })}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="p-5">
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Card tone="requestor" className="p-5 sm:p-6">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-2xl font-black">Task gần đây</h2>
+            <h2 className="text-2xl font-black lg:text-3xl">Task gần đây</h2>
             <Button asChild variant="secondary" size="sm">
               <Link href="/requestor/tasks">Xem tất cả</Link>
             </Button>
@@ -513,9 +576,11 @@ export function RequestorDashboardPage() {
           </div>
         </Card>
 
-        <Card className="p-5">
+        <Card tone="requestor" className="p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-2xl font-black">Submission mới nhất</h2>
+            <h2 className="text-2xl font-black lg:text-3xl">
+              Submission mới nhất
+            </h2>
             <Button asChild variant="secondary" size="sm">
               <Link href="/requestor/submissions">Theo dõi</Link>
             </Button>
@@ -540,13 +605,13 @@ export function RequestorTasksPage() {
 
   return (
     <RequestorPageFrame>
-      <Card className="p-5">
+      <Card tone="requestor" className="p-5">
         <SectionHeader
           eyebrow="Requestor"
           title="Task đã tạo"
           description="Quản lý task từ bản nháp đến completed, kèm trạng thái escrow và submission."
           action={
-            <Button asChild>
+            <Button asChild tone="requestor">
               <Link href="/requestor/tasks/create">
                 <FilePlus2 className="size-4" />
                 Tạo task mới
@@ -556,9 +621,10 @@ export function RequestorTasksPage() {
         />
       </Card>
 
-      <Card className="grid gap-4 p-5">
+      <Card tone="requestor" className="grid gap-4 p-5">
         <div className="flex flex-wrap gap-2">
           <Button
+            tone={status === "all" ? "requestor" : "default"}
             variant={status === "all" ? "default" : "secondary"}
             size="sm"
             onClick={() => setStatus("all")}
@@ -568,6 +634,7 @@ export function RequestorTasksPage() {
           {requestorStatusOrder.map((item) => (
             <Button
               key={item}
+              tone={status === item ? "requestor" : "default"}
               variant={status === item ? "default" : "secondary"}
               size="sm"
               onClick={() => setStatus(item)}
@@ -577,7 +644,7 @@ export function RequestorTasksPage() {
           ))}
         </div>
 
-        <div className="grid gap-3 lg:grid-cols-[1fr_220px_220px]">
+        <div className="grid gap-4 lg:grid-cols-[1fr_240px_240px]">
           <Field>
             <FieldLabel>Tìm theo tên task</FieldLabel>
             <div className="relative">
@@ -593,7 +660,7 @@ export function RequestorTasksPage() {
           <Field>
             <FieldLabel>Lọc theo trạng thái</FieldLabel>
             <select
-              className="min-h-10 rounded-lg border-2 border-slate-950 bg-[#FFFDF3] px-3 py-2 font-bold outline-none focus:bg-white focus-visible:ring-4 focus-visible:ring-[#FFD84D] focus-visible:ring-offset-2"
+              className="min-h-11 rounded-lg border-2 border-slate-950 bg-[#FFFDF3] px-3.5 py-2.5 font-bold outline-none focus:bg-white focus-visible:ring-4 focus-visible:ring-[var(--role-requestor)] focus-visible:ring-offset-2"
               value={status}
               onChange={(event) =>
                 setStatus(event.target.value as RequestorTaskStatus | "all")
@@ -610,7 +677,7 @@ export function RequestorTasksPage() {
           <Field>
             <FieldLabel>Sắp xếp</FieldLabel>
             <select
-              className="min-h-10 rounded-lg border-2 border-slate-950 bg-[#FFFDF3] px-3 py-2 font-bold outline-none focus:bg-white focus-visible:ring-4 focus-visible:ring-[#FFD84D] focus-visible:ring-offset-2"
+              className="min-h-10 rounded-lg border-2 border-slate-950 bg-[#FFFDF3] px-3 py-2 font-bold outline-none focus:bg-white focus-visible:ring-4 focus-visible:ring-[var(--role-requestor)] focus-visible:ring-offset-2"
               value={sortBy}
               onChange={(event) => setSortBy(event.target.value as SortOption)}
             >
@@ -625,14 +692,14 @@ export function RequestorTasksPage() {
       </Card>
 
       {isLoading ? (
-        <SoftCard className="p-4 font-black">Đang tải dữ liệu...</SoftCard>
+        <SoftCard className="p-5 font-black">Đang tải dữ liệu...</SoftCard>
       ) : null}
       <DataSourceWarning message={sourceWarning} />
       {!isLoading && tasks.length === 0 ? (
         <EmptyState
           title="Bạn chưa tạo task nào"
           action={
-            <Button asChild>
+            <Button asChild tone="requestor">
               <Link href="/requestor/tasks/create">Tạo task đầu tiên</Link>
             </Button>
           }
@@ -776,7 +843,7 @@ function Textarea({
     <textarea
       {...props}
       className={cn(
-        "min-h-28 w-full rounded-lg border-2 border-slate-950 bg-[#FFFDF3] px-3 py-2 outline-none focus:bg-white focus-visible:ring-4 focus-visible:ring-[#FFD84D] focus-visible:ring-offset-2",
+        "min-h-28 w-full rounded-lg border-2 border-slate-950 bg-[#FFFDF3] px-3 py-2 outline-none focus:bg-white focus-visible:ring-4 focus-visible:ring-[var(--role-requestor)] focus-visible:ring-offset-2",
         className
       )}
     />
@@ -897,7 +964,10 @@ export function RequestorCreateTaskPage() {
             "votingDeadline phải sau submissionDeadline.";
         }
         if (
-          !isAllowedStorageUri(form.publicMetadataUri, PUBLIC_METADATA_URI_PREFIXES)
+          !isAllowedStorageUri(
+            form.publicMetadataUri,
+            PUBLIC_METADATA_URI_PREFIXES
+          )
         )
           nextErrors.publicMetadataUri =
             "URI public metadata phải bắt đầu bằng ipfs://, ar://, https:// hoặc local://.";
@@ -1143,7 +1213,7 @@ export function RequestorCreateTaskPage() {
 
   return (
     <RequestorPageFrame>
-      <Card className="p-5">
+      <Card tone="requestor" className="p-5 sm:p-6">
         <SectionHeader
           eyebrow="Requestor"
           title="Tạo task mới"
@@ -1151,7 +1221,7 @@ export function RequestorCreateTaskPage() {
         />
       </Card>
 
-      <Card className="p-5">
+      <Card tone="requestor" className="p-6 sm:p-7">
         <div className="mb-5 grid gap-2 md:grid-cols-4">
           {steps.map((label, index) => (
             <div
@@ -1168,7 +1238,7 @@ export function RequestorCreateTaskPage() {
         </div>
 
         {step === 0 ? (
-          <div className="grid gap-3">
+          <div className="grid gap-4">
             <Field>
               <FieldLabel>Tên task</FieldLabel>
               <Input
@@ -1216,7 +1286,7 @@ export function RequestorCreateTaskPage() {
         ) : null}
 
         {step === 1 ? (
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2">
             <Field>
               <FieldLabel>Số thưởng (base units)</FieldLabel>
               <Input
@@ -1396,7 +1466,7 @@ export function RequestorCreateTaskPage() {
         ) : null}
 
         {step === 2 ? (
-          <div className="grid gap-3">
+          <div className="grid gap-4">
             {mockJudges.map((judge) => {
               const checked = form.judgeIds.includes(judge.id);
               return (
@@ -1433,11 +1503,11 @@ export function RequestorCreateTaskPage() {
 
         {step === 3 ? (
           <div className="grid gap-4">
-            <SoftCard className="p-4">
-              <h2 className="text-2xl font-black">
+            <SoftCard className="p-5">
+              <h2 className="text-3xl font-black">
                 {form.title || "Chưa nhập tên task"}
               </h2>
-              <p className="mt-2 font-bold">
+              <p className="mt-2 font-bold leading-7">
                 {form.shortDescription || "Chưa nhập mô tả ngắn"}
               </p>
               <div className="mt-4 grid gap-2 font-bold md:grid-cols-2">
@@ -1457,8 +1527,10 @@ export function RequestorCreateTaskPage() {
                 <p>Escrow: {form.escrowNote}</p>
               </div>
             </SoftCard>
-            <SoftCard className="p-4">
-              <h3 className="text-xl font-black">On-chain initializeTask data</h3>
+            <SoftCard className="p-5">
+              <h3 className="text-2xl font-black">
+                On-chain initializeTask data
+              </h3>
               <div className="mt-3 grid gap-2 break-all font-bold md:grid-cols-2">
                 <p>taskId: {form.taskId || "Chưa nhập"}</p>
                 <p>tokenMint: {form.tokenMint || "Chưa nhập"}</p>
@@ -1479,7 +1551,9 @@ export function RequestorCreateTaskPage() {
                 <p>
                   submissionDeadline:{" "}
                   {form.submissionDeadline
-                    ? formatDate(new Date(form.submissionDeadline).toISOString())
+                    ? formatDate(
+                        new Date(form.submissionDeadline).toISOString()
+                      )
                     : "Chưa chọn"}
                 </p>
                 <p>
@@ -1488,15 +1562,17 @@ export function RequestorCreateTaskPage() {
                     ? formatDate(new Date(form.votingDeadline).toISOString())
                     : "Chưa chọn"}
                 </p>
-                <p>publicMetadataUri: {form.publicMetadataUri || "Chưa nhập"}</p>
+                <p>
+                  publicMetadataUri: {form.publicMetadataUri || "Chưa nhập"}
+                </p>
                 <p>
                   encryptedTaskDetailUri:{" "}
                   {form.encryptedTaskDetailUri || "Chưa nhập"}
                 </p>
               </div>
             </SoftCard>
-            <SoftCard className="p-4">
-              <h3 className="text-xl font-black">Người chấm</h3>
+            <SoftCard className="p-5">
+              <h3 className="text-2xl font-black">Người chấm</h3>
               <div className="mt-2 flex flex-wrap gap-2">
                 {selectedJudges().length ? (
                   selectedJudges().map((judge) => (
@@ -1524,12 +1600,16 @@ export function RequestorCreateTaskPage() {
               Lưu bản nháp
             </Button>
             {step === steps.length - 1 ? (
-              <Button disabled={isPublishing} onClick={publishTask}>
+              <Button
+                tone="requestor"
+                disabled={isPublishing}
+                onClick={publishTask}
+              >
                 <Lock className="size-4" />
                 {isPublishing ? "Đang đăng..." : "Đăng task"}
               </Button>
             ) : (
-              <Button disabled={isPublishing} onClick={goNext}>
+              <Button tone="requestor" disabled={isPublishing} onClick={goNext}>
                 Tiếp tục
                 <ArrowRight className="size-4" />
               </Button>
@@ -1543,8 +1623,8 @@ export function RequestorCreateTaskPage() {
               publishPhase === "error"
                 ? "bg-[#FF6B8A]"
                 : publishPhase === "success"
-                  ? "bg-[#79F2C0]"
-                  : "bg-[#FFFDF3]"
+                ? "bg-[#79F2C0]"
+                : "bg-[#FFFDF3]"
             )}
           >
             <p>Transaction status: {publishMessage}</p>
@@ -1576,8 +1656,7 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
   const wallet = anchorWallet as AnchorWalletLike | undefined;
   const [submissionPage, setSubmissionPage] = useState(1);
   const [submissionPageSize, setSubmissionPageSize] = useState(10);
-  const [actionStatus, setActionStatus] =
-    useState<DetailActionStatus>("idle");
+  const [actionStatus, setActionStatus] = useState<DetailActionStatus>("idle");
   const [actionError, setActionError] = useState("");
   const [missingFields, setMissingFields] = useState<string[]>([]);
   const [workerTokenAccount, setWorkerTokenAccount] = useState("");
@@ -1616,13 +1695,16 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
   const payoutChainTaskId = task ? readStoredOnChainTaskId(task).trim() : "";
   const payoutEligible = task?.status === "Judged";
   const hasPayoutChainData = Boolean(
-    payoutChainTaskId && /^\d+$/.test(payoutChainTaskId) && task?.taskPda && task?.tokenMint
+    payoutChainTaskId &&
+      /^\d+$/.test(payoutChainTaskId) &&
+      task?.taskPda &&
+      task?.tokenMint
   );
   const payoutDisabledReason = !payoutEligible
     ? "Chỉ task đã chấm mới đủ điều kiện payout."
     : !hasPayoutChainData
-      ? "Thiếu onChainTaskId numeric, taskPda hoặc tokenMint."
-      : "";
+    ? "Thiếu onChainTaskId numeric, taskPda hoặc tokenMint."
+    : "";
   const isPayoutRunning =
     payoutPhase === "preparing" ||
     payoutPhase === "sending" ||
@@ -1654,7 +1736,9 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
   function deriveWorkerPayoutAta() {
     setPayoutError("");
     if (!task?.worker || !task.tokenMint) {
-      setPayoutError("Thiếu worker wallet hoặc tokenMint để derive worker ATA.");
+      setPayoutError(
+        "Thiếu worker wallet hoặc tokenMint để derive worker ATA."
+      );
       return;
     }
 
@@ -1837,7 +1921,9 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
     }
 
     if (!wallet || !publicKey) {
-      setActionError("Connect wallet trước khi publish draft lên Solana Devnet.");
+      setActionError(
+        "Connect wallet trước khi publish draft lên Solana Devnet."
+      );
       setActionStatus("error");
       return;
     }
@@ -1917,7 +2003,7 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
   if (isLoading) {
     return (
       <RequestorPageFrame>
-        <SoftCard className="p-4 font-black">Đang tải dữ liệu...</SoftCard>
+        <SoftCard className="p-5 font-black">Đang tải dữ liệu...</SoftCard>
       </RequestorPageFrame>
     );
   }
@@ -1932,7 +2018,7 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
 
   return (
     <RequestorPageFrame>
-      <Card className="p-5">
+      <Card tone="requestor" className="p-5">
         <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
           <div>
             <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -1951,9 +2037,11 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
       </Card>
       <DataSourceWarning message={sourceWarning} />
 
-      <Card className="p-5">
-        <h2 className="mb-4 text-2xl font-black">Timeline trạng thái task</h2>
-        <div className="grid gap-2 md:grid-cols-6">
+      <Card tone="requestor" className="p-5 sm:p-6">
+        <h2 className="mb-4 text-2xl font-black lg:text-3xl">
+          Timeline trạng thái task
+        </h2>
+        <div className="grid gap-3 md:grid-cols-6">
           {requestorStatusOrder.map((status) => {
             const active =
               requestorStatusOrder.indexOf(status) <=
@@ -1973,12 +2061,12 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
         </div>
       </Card>
 
-      <Card className="p-5">
-        <h2 className="mb-3 text-2xl font-black">
+      <Card tone="requestor" className="p-5 sm:p-6">
+        <h2 className="mb-3 text-2xl font-black lg:text-3xl">
           Proof & Smart Contract Accounts
         </h2>
         {!task.signature && !task.taskPda ? (
-          <SoftCard className="p-4 font-bold">
+          <SoftCard className="p-5 font-bold">
             <p>Chưa publish on-chain.</p>
             {task.status === "Draft" ? (
               <p className="mt-1">
@@ -1993,11 +2081,16 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
               <ProofValue
                 label="Program ID"
                 value={task.programId ?? PROGRAM_ID.toBase58()}
-                href={explorerAccountUrl(task.programId ?? PROGRAM_ID.toBase58())}
+                href={explorerAccountUrl(
+                  task.programId ?? PROGRAM_ID.toBase58()
+                )}
               />
               <ProofValue label="RPC" value={RPC_URL} />
               <ProofValue label="Network" value="Solana Devnet" />
-              <ProofValue label="isSimulated" value={task.isSimulated ?? false} />
+              <ProofValue
+                label="isSimulated"
+                value={task.isSimulated ?? false}
+              />
               <ProofValue
                 label="Signature"
                 value={task.signature}
@@ -2007,7 +2100,9 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
               <ProofValue
                 label="taskPda"
                 value={task.taskPda}
-                href={task.taskPda ? explorerAccountUrl(task.taskPda) : undefined}
+                href={
+                  task.taskPda ? explorerAccountUrl(task.taskPda) : undefined
+                }
               />
               <ProofValue
                 label="escrowTokenVault"
@@ -2021,7 +2116,9 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
               <ProofValue
                 label="nftAsset / Core Asset"
                 value={task.nftAsset}
-                href={task.nftAsset ? explorerAccountUrl(task.nftAsset) : undefined}
+                href={
+                  task.nftAsset ? explorerAccountUrl(task.nftAsset) : undefined
+                }
               />
               <ProofValue
                 label="requestorTokenAccount"
@@ -2035,7 +2132,11 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
               <ProofValue
                 label="tokenMint"
                 value={task.tokenMint}
-                href={task.tokenMint ? explorerAccountUrl(task.tokenMint) : undefined}
+                href={
+                  task.tokenMint
+                    ? explorerAccountUrl(task.tokenMint)
+                    : undefined
+                }
               />
               <ProofValue label="onChainTaskId" value={task.onChainTaskId} />
               <ProofValue
@@ -2047,13 +2148,16 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
             </div>
 
             {task.accounts?.length ? (
-              <SoftCard className="p-4">
-                <h3 className="mb-2 text-lg font-black">Account links</h3>
+              <SoftCard className="p-5">
+                <h3 className="mb-2 text-xl font-black">Account links</h3>
                 <div className="grid gap-2 font-bold md:grid-cols-2">
                   {task.accounts.map((account) => (
                     <p key={`${account.label}-${account.address}`}>
                       <span className="font-black">{account.label}: </span>
-                      <ExplorerLink href={account.url} value={account.address} />
+                      <ExplorerLink
+                        href={account.url}
+                        value={account.address}
+                      />
                     </p>
                   ))}
                 </div>
@@ -2061,13 +2165,18 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
             ) : null}
 
             {task.payoutAccounts?.length ? (
-              <SoftCard className="p-4">
-                <h3 className="mb-2 text-lg font-black">Payout account links</h3>
+              <SoftCard className="p-5">
+                <h3 className="mb-2 text-xl font-black">
+                  Payout account links
+                </h3>
                 <div className="grid gap-2 font-bold md:grid-cols-2">
                   {task.payoutAccounts.map((account) => (
                     <p key={`payout-${account.label}-${account.address}`}>
                       <span className="font-black">{account.label}: </span>
-                      <ExplorerLink href={account.url} value={account.address} />
+                      <ExplorerLink
+                        href={account.url}
+                        value={account.address}
+                      />
                     </p>
                   ))}
                 </div>
@@ -2077,10 +2186,12 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
         )}
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
-        <div className="grid gap-4">
-          <Card className="p-5">
-            <h2 className="mb-3 text-2xl font-black">Bài nộp của worker</h2>
+      <div className="grid gap-5 lg:grid-cols-[1fr_380px]">
+        <div className="grid gap-5">
+          <Card tone="requestor" className="p-5 sm:p-6">
+            <h2 className="mb-3 text-2xl font-black lg:text-3xl">
+              Bài nộp của worker
+            </h2>
             {submissions.length ? (
               <>
                 <SubmissionList submissions={visibleSubmissions} />
@@ -2102,10 +2213,12 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
             )}
           </Card>
 
-          <Card className="p-5">
-            <h2 className="mb-3 text-2xl font-black">Kết quả chấm</h2>
+          <Card tone="requestor" className="p-5 sm:p-6">
+            <h2 className="mb-3 text-2xl font-black lg:text-3xl">
+              Kết quả chấm
+            </h2>
             {task.result ? (
-              <SoftCard className="grid gap-2 p-4 font-bold">
+              <SoftCard className="grid gap-2 p-5 font-bold">
                 <p>Điểm: {task.result.score}</p>
                 <p>Quyết định: {task.result.decision}</p>
                 <p>Nhận xét: {task.result.comment}</p>
@@ -2116,28 +2229,32 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
           </Card>
         </div>
 
-        <div className="grid gap-4">
-          <Card className="p-5">
-            <h2 className="mb-3 text-2xl font-black">Escrow phần thưởng</h2>
+        <div className="grid gap-5">
+          <Card tone="requestor" className="p-5 sm:p-6">
+            <h2 className="mb-3 text-2xl font-black lg:text-3xl">
+              Escrow phần thưởng
+            </h2>
             <div className="grid gap-2 font-bold">
-              <SoftCard className="p-3">
+              <SoftCard className="p-4">
                 Số thưởng: {formatCurrency(task.rewardAmount, task.token)}
               </SoftCard>
-              <SoftCard className="p-3">
+              <SoftCard className="p-4">
                 Trạng thái escrow: {task.escrowStatus}
               </SoftCard>
-              <SoftCard className="p-3">
+              <SoftCard className="p-4">
                 Trạng thái payout: {task.payoutStatus}
               </SoftCard>
             </div>
           </Card>
 
-          <Card className="p-5">
-            <h2 className="mb-3 text-2xl font-black">Người chấm được chọn</h2>
-            <div className="grid gap-3">
+          <Card tone="requestor" className="p-5 sm:p-6">
+            <h2 className="mb-3 text-2xl font-black lg:text-3xl">
+              Người chấm được chọn
+            </h2>
+            <div className="grid gap-4">
               {task.judges.length ? (
                 task.judges.map((judge) => (
-                  <SoftCard key={judge.id} className="p-3 font-bold">
+                  <SoftCard key={judge.id} className="p-4 font-bold">
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <strong>{judge.name}</strong>
@@ -2159,13 +2276,14 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
             </div>
           </Card>
 
-          <Card className="p-5">
-            <h2 className="mb-3 text-2xl font-black">Hành động</h2>
-            <div className="flex flex-wrap gap-2">
+          <Card tone="requestor" className="p-5 sm:p-6">
+            <h2 className="mb-3 text-2xl font-black lg:text-3xl">Hành động</h2>
+            <div className="flex flex-wrap gap-3">
               {task.status === "Draft" ? (
                 <>
                   <Button variant="secondary">Chỉnh sửa</Button>
                   <Button
+                    tone="requestor"
                     disabled={
                       actionStatus === "publishing" ||
                       actionStatus === "indexing"
@@ -2175,7 +2293,7 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
                     {actionStatus === "publishing"
                       ? "Đang đăng..."
                       : actionStatus === "indexing"
-                        ? "Đang lưu MongoDB..."
+                      ? "Đang lưu MongoDB..."
                       : "Đăng task"}
                   </Button>
                 </>
@@ -2223,8 +2341,8 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
                       {!task.worker ? (
                         <p className="text-sm font-bold">
                           Chưa có worker wallet từ dữ liệu on-chain/indexed;
-                          nhập Worker token account thủ công nếu bạn đã biết
-                          tài khoản nhận token.
+                          nhập Worker token account thủ công nếu bạn đã biết tài
+                          khoản nhận token.
                         </p>
                       ) : null}
                     </Field>
@@ -2257,6 +2375,7 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
                     ) : null}
                   </SoftCard>
                   <Button
+                    tone="requestor"
                     disabled={
                       isPayoutRunning || !payoutEligible || !hasPayoutChainData
                     }
@@ -2283,8 +2402,8 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
                 ) : null}
                 {payoutPhase === "success" ? (
                   <p className="mt-1 text-sm">
-                    Payout proof đã lưu local. MongoDB index là nguồn trạng
-                    thái chính khi refresh.
+                    Payout proof đã lưu local. MongoDB index là nguồn trạng thái
+                    chính khi refresh.
                   </p>
                 ) : null}
                 {task.payoutSignature ? (
@@ -2319,9 +2438,7 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
                 ) : null}
                 {missingFields.length ? (
                   <div>
-                    <p className="font-black">
-                      Draft thiếu dữ liệu on-chain:
-                    </p>
+                    <p className="font-black">Draft thiếu dữ liệu on-chain:</p>
                     <ul className="mt-2 list-disc space-y-1 pl-5">
                       {missingFields.map((field) => (
                         <li key={field}>{field}</li>
@@ -2427,7 +2544,7 @@ export function RequestorSubmissionsPage() {
 
   return (
     <RequestorPageFrame>
-      <Card className="p-5">
+      <Card tone="requestor" className="p-5">
         <SectionHeader
           eyebrow="Requestor"
           title="Theo dõi submission"
@@ -2435,11 +2552,12 @@ export function RequestorSubmissionsPage() {
         />
       </Card>
 
-      <Card className="grid gap-4 p-5">
+      <Card tone="requestor" className="grid gap-4 p-5">
         <div className="flex flex-wrap gap-2">
           {tabs.map((item) => (
             <Button
               key={item}
+              tone={status === item ? "requestor" : "default"}
               variant={status === item ? "default" : "secondary"}
               size="sm"
               onClick={() => setStatus(item)}
@@ -2448,7 +2566,7 @@ export function RequestorSubmissionsPage() {
             </Button>
           ))}
         </div>
-        <div className="grid gap-3 lg:grid-cols-[1fr_220px_220px]">
+        <div className="grid gap-4 lg:grid-cols-[1fr_240px_240px]">
           <Field>
             <FieldLabel>Tìm theo task/submission/worker</FieldLabel>
             <div className="relative">
@@ -2464,7 +2582,7 @@ export function RequestorSubmissionsPage() {
           <Field>
             <FieldLabel>Lọc theo trạng thái</FieldLabel>
             <select
-              className="min-h-10 rounded-lg border-2 border-slate-950 bg-[#FFFDF3] px-3 py-2 font-bold outline-none focus:bg-white focus-visible:ring-4 focus-visible:ring-[#FFD84D] focus-visible:ring-offset-2"
+              className="min-h-10 rounded-lg border-2 border-slate-950 bg-[#FFFDF3] px-3 py-2 font-bold outline-none focus:bg-white focus-visible:ring-4 focus-visible:ring-[var(--role-requestor)] focus-visible:ring-offset-2"
               value={status}
               onChange={(event) =>
                 setStatus(event.target.value as SubmissionStatus | "all")
@@ -2481,7 +2599,7 @@ export function RequestorSubmissionsPage() {
           <Field>
             <FieldLabel>Sắp xếp</FieldLabel>
             <select
-              className="min-h-10 rounded-lg border-2 border-slate-950 bg-[#FFFDF3] px-3 py-2 font-bold outline-none focus:bg-white focus-visible:ring-4 focus-visible:ring-[#FFD84D] focus-visible:ring-offset-2"
+              className="min-h-10 rounded-lg border-2 border-slate-950 bg-[#FFFDF3] px-3 py-2 font-bold outline-none focus:bg-white focus-visible:ring-4 focus-visible:ring-[var(--role-requestor)] focus-visible:ring-offset-2"
               value={sortBy}
               onChange={(event) =>
                 setSortBy(event.target.value as "newest" | "deadline")
@@ -2495,14 +2613,14 @@ export function RequestorSubmissionsPage() {
       </Card>
 
       {isLoading ? (
-        <SoftCard className="p-4 font-black">Đang tải dữ liệu...</SoftCard>
+        <SoftCard className="p-5 font-black">Đang tải dữ liệu...</SoftCard>
       ) : null}
       <DataSourceWarning message={sourceWarning} />
       {!isLoading && filteredSubmissions.length === 0 ? (
         <EmptyState title="Chưa có submission phù hợp" />
       ) : (
         <>
-          <Card className="p-5">
+          <Card tone="requestor" className="p-5 sm:p-6">
             <SubmissionList submissions={pagination.paginatedItems} />
           </Card>
           <Pagination

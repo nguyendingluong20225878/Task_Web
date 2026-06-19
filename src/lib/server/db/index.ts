@@ -4,6 +4,7 @@ export {
   listJudgeAssignments,
   listOpenTasks,
   listTasksByRequestor,
+  listTasksByWorker,
   upsertTaskFromChain,
 } from "./repositories";
 export type {
