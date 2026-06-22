@@ -13,7 +13,10 @@ import {
   fetchActiveWorkerTasks,
   fetchOpenWorkerTasks,
 } from "@/lib/api/worker-tasks";
-import { indexTaskAfterTransaction } from "@/lib/api/chain-index";
+import {
+  ChainIndexError,
+  indexTaskAfterTransaction,
+} from "@/lib/api/chain-index";
 import {
   PROGRAM_ID,
   explorerAccountUrl,
@@ -23,6 +26,7 @@ import {
   type AccountLink,
   type AnchorWalletLike,
 } from "@/lib/solana/client";
+import { isProtocolUri, publicUriHref } from "@/lib/task-presentation";
 import { canStakeTask, type WorkerTask } from "@/lib/worker/types";
 
 type StakePhase =
@@ -31,6 +35,7 @@ type StakePhase =
   | "sending"
   | "confirming"
   | "indexing"
+  | "pending"
   | "success"
   | "error";
 
@@ -40,7 +45,8 @@ type StakeProof = {
   explorerTxUrl: string;
   workerEscrow?: string;
   accounts?: AccountLink[];
-  indexStatus?: "indexed" | "index_failed";
+  confirmationStatus?: "confirmed" | "pending";
+  indexStatus?: "pending" | "indexed" | "index_failed";
   indexedSlot?: number;
   indexError?: string;
 };
@@ -51,6 +57,7 @@ type SubmitPhase =
   | "sending"
   | "confirming"
   | "indexing"
+  | "pending"
   | "success"
   | "error";
 
@@ -61,18 +68,11 @@ type SubmitProof = {
   assignedJudges?: string[];
   encryptedSubmissionUri?: string;
   accounts?: AccountLink[];
-  indexStatus?: "indexed" | "index_failed";
+  confirmationStatus?: "confirmed" | "pending";
+  indexStatus?: "pending" | "indexed" | "index_failed";
   indexedSlot?: number;
   indexError?: string;
 };
-
-const ALLOWED_SUBMISSION_URI_PREFIXES = [
-  "enc://",
-  "ipfs://",
-  "ar://",
-  "https://",
-  "local://",
-];
 
 function shortAddress(address?: string) {
   if (!address) return "N/A";
@@ -128,11 +128,7 @@ function validateEncryptedSubmissionUri(value: string) {
   if (trimmed.toLowerCase().startsWith("mock://")) {
     return "mock:// không được phép cho submission thật.";
   }
-  if (
-    !ALLOWED_SUBMISSION_URI_PREFIXES.some((prefix) =>
-      trimmed.startsWith(prefix)
-    )
-  ) {
+  if (!isProtocolUri(trimmed, true)) {
     return "URI phải bắt đầu bằng enc://, ipfs://, ar://, https:// hoặc local://.";
   }
   return "";
@@ -233,6 +229,8 @@ function WorkerTaskDetail() {
     if (!task) return "Không có task để stake.";
     if (!canStakeTask(task))
       return `Task đang ở trạng thái ${task.status}, chỉ task Open mới stake được.`;
+    if (task.requestor && walletMatches(task.requestor, walletAddress))
+      return "Requestor không thể stake chính task của mình.";
     if (!wallet || !walletAddress)
       return "Kết nối ví worker để stake task này.";
     if (!isNumericTaskId(task.onChainTaskId))
@@ -242,6 +240,7 @@ function WorkerTaskDetail() {
   const canRunStake = Boolean(
     task &&
       canStakeTask(task) &&
+      (!task.requestor || !walletMatches(task.requestor, walletAddress)) &&
       wallet &&
       walletAddress &&
       isNumericTaskId(task.onChainTaskId)
@@ -307,6 +306,11 @@ function WorkerTaskDetail() {
       );
       return;
     }
+    if (task.requestor && walletMatches(task.requestor, walletAddress)) {
+      setStakePhase("error");
+      setStakeError("Requestor không thể stake chính task của mình.");
+      return;
+    }
     if (!isNumericTaskId(task.onChainTaskId)) {
       setStakePhase("error");
       setStakeError("onChainTaskId phải là numeric để gọi stakeToUnlock.");
@@ -329,10 +333,16 @@ function WorkerTaskDetail() {
             ? result.workerEscrow
             : undefined,
         accounts: result.accounts,
+        confirmationStatus: result.confirmationStatus,
       };
 
       setStakePhase("confirming");
       setStakeProof(nextProof);
+      if (result.confirmationStatus === "pending") {
+        setStakeProof({ ...nextProof, indexStatus: "pending" });
+        setStakePhase("pending");
+        return;
+      }
       setStakePhase("indexing");
 
       try {
@@ -351,14 +361,14 @@ function WorkerTaskDetail() {
         });
         setStakePhase("success");
       } catch (caught) {
-        const message =
-          caught instanceof Error ? caught.message : String(caught);
+        const message = caught instanceof Error ? caught.message : String(caught);
+        const pending = caught instanceof ChainIndexError && caught.code === "SIGNATURE_NOT_CONFIRMED";
         setStakeProof({
           ...nextProof,
-          indexStatus: "index_failed",
+          indexStatus: pending ? "pending" : "index_failed",
           indexError: message,
         });
-        setStakePhase("success");
+        setStakePhase(pending ? "pending" : "success");
       }
       await refreshTaskData();
     } catch (caught) {
@@ -425,10 +435,16 @@ function WorkerTaskDetail() {
         assignedJudges: readAssignedJudges(result.assignedJudges),
         encryptedSubmissionUri: trimmedSubmissionUri,
         accounts: result.accounts,
+        confirmationStatus: result.confirmationStatus,
       };
 
       setSubmitPhase("confirming");
       setSubmitProof(nextProof);
+      if (result.confirmationStatus === "pending") {
+        setSubmitProof({ ...nextProof, indexStatus: "pending" });
+        setSubmitPhase("pending");
+        return;
+      }
       setSubmitPhase("indexing");
 
       try {
@@ -447,14 +463,14 @@ function WorkerTaskDetail() {
         });
         setSubmitPhase("success");
       } catch (caught) {
-        const message =
-          caught instanceof Error ? caught.message : String(caught);
+        const message = caught instanceof Error ? caught.message : String(caught);
+        const pending = caught instanceof ChainIndexError && caught.code === "SIGNATURE_NOT_CONFIRMED";
         setSubmitProof({
           ...nextProof,
-          indexStatus: "index_failed",
+          indexStatus: pending ? "pending" : "index_failed",
           indexError: message,
         });
-        setSubmitPhase("success");
+        setSubmitPhase(pending ? "pending" : "success");
       }
       await refreshTaskData();
     } catch (caught) {
@@ -463,6 +479,53 @@ function WorkerTaskDetail() {
       setSubmitError(mapSolanaError(caught));
     }
   }, [encryptedSubmissionUri, refreshTaskData, task, wallet, walletAddress]);
+
+
+  const retryStakeIndex = useCallback(async () => {
+    if (!task || !stakeProof || !walletAddress) return;
+    setStakePhase("indexing");
+    setStakeError("");
+    try {
+      const indexed = await indexTaskAfterTransaction({
+        taskId: task.onChainTaskId,
+        signature: stakeProof.signature,
+        instruction: "stake_to_unlock",
+        actor: walletAddress,
+        slot: stakeProof.slot,
+      });
+      setStakeProof({ ...stakeProof, indexStatus: "indexed", indexedSlot: indexed.indexedSlot, indexError: undefined });
+      setStakePhase("success");
+      await refreshTaskData();
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : String(caught);
+      const pending = caught instanceof ChainIndexError && caught.code === "SIGNATURE_NOT_CONFIRMED";
+      setStakeProof({ ...stakeProof, indexStatus: pending ? "pending" : "index_failed", indexError: message });
+      setStakePhase(pending ? "pending" : "success");
+    }
+  }, [refreshTaskData, stakeProof, task, walletAddress]);
+
+  const retrySubmitIndex = useCallback(async () => {
+    if (!task || !submitProof || !walletAddress) return;
+    setSubmitPhase("indexing");
+    setSubmitError("");
+    try {
+      const indexed = await indexTaskAfterTransaction({
+        taskId: task.onChainTaskId,
+        signature: submitProof.signature,
+        instruction: "submit_and_assign",
+        actor: walletAddress,
+        slot: submitProof.slot,
+      });
+      setSubmitProof({ ...submitProof, indexStatus: "indexed", indexedSlot: indexed.indexedSlot, indexError: undefined });
+      setSubmitPhase("success");
+      await refreshTaskData();
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : String(caught);
+      const pending = caught instanceof ChainIndexError && caught.code === "SIGNATURE_NOT_CONFIRMED";
+      setSubmitProof({ ...submitProof, indexStatus: pending ? "pending" : "index_failed", indexError: message });
+      setSubmitPhase(pending ? "pending" : "success");
+    }
+  }, [refreshTaskData, submitProof, task, walletAddress]);
 
   return (
     <main className="min-h-screen px-4 py-8">
@@ -565,6 +628,8 @@ function WorkerTaskDetail() {
                     running={stakeIsRunning}
                     stakeAmount={task.workerStakeAmount}
                     onStake={handleStakeToUnlock}
+                    canRetryIndex={Boolean(stakeProof && stakeProof.indexStatus !== "indexed")}
+                    onRetryIndex={retryStakeIndex}
                   />
                 ) : task.status === "InProgress" ? (
                   <SubmitAction
@@ -577,6 +642,8 @@ function WorkerTaskDetail() {
                     submissionUri={encryptedSubmissionUri}
                     uriError={submitUriError}
                     onSubmissionUriChange={setEncryptedSubmissionUri}
+                    canRetryIndex={Boolean(submitProof && submitProof.indexStatus !== "indexed")}
+                    onRetryIndex={retrySubmitIndex}
                   />
                 ) : (
                   <SoftCard className="p-5 font-bold text-slate-700">
@@ -647,36 +714,31 @@ function AddressValue({
 
 function UriValue({ value }: { value?: string }) {
   if (!value) return <>N/A</>;
-
-  if (!/^https?:\/\//i.test(value)) {
-    return <span>{value}</span>;
-  }
-
+  const href = publicUriHref(value);
+  if (!href) return <span>{value}</span>;
   return (
-    <a
-      href={value}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex items-center gap-1 underline decoration-2 underline-offset-2"
-    >
-      {value}
-      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+    <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 underline decoration-2 underline-offset-2">
+      {value}<ExternalLink className="h-3.5 w-3.5 shrink-0" />
     </a>
   );
 }
 
 function StakeAction({
+  canRetryIndex,
   canRunStake,
   error,
   helpText,
+  onRetryIndex,
   onStake,
   stakeAmount,
   phase,
   running,
 }: {
+  canRetryIndex: boolean;
   canRunStake: boolean;
   error: string;
   helpText: string;
+  onRetryIndex: () => void;
   onStake: () => void;
   stakeAmount?: string;
   phase: StakePhase;
@@ -691,6 +753,8 @@ function StakeAction({
       ? "Đang confirm..."
       : phase === "indexing"
       ? "Đang index Mongo..."
+      : phase === "pending"
+      ? "Transaction đang chờ xác nhận"
       : phase === "success"
       ? "Stake completed"
       : phase === "error"
@@ -728,11 +792,17 @@ function StakeAction({
       <Button
         type="button"
         className="mt-5 w-full bg-[#1D4ED8] text-white shadow-[4px_4px_0_#111827]"
-        disabled={!canRunStake || running}
+        disabled={!canRunStake || running || phase === "pending"}
         onClick={onStake}
       >
         {running ? "Đang xử lý..." : "Stake to unlock"}
       </Button>
+
+      {canRetryIndex ? (
+        <Button type="button" variant="secondary" className="mt-3 w-full" disabled={running} onClick={onRetryIndex}>
+          Retry Mongo index
+        </Button>
+      ) : null}
 
       {error ? (
         <SoftCard className="mt-4 border-rose-700 bg-rose-50 p-3 font-bold text-rose-700">
@@ -775,7 +845,7 @@ function FinancialItem({
 }
 
 function WorkRequirements({ task }: { task: WorkerTask }) {
-  const documentUri = task.publicMetadataUri ?? task.encryptedTaskDetailUri;
+  const documentUri = publicUriHref(task.publicMetadataUri);
   return (
     <div className="rounded-lg border-2 border-slate-950 bg-[#FFFDF3] p-5">
       <h2 className="text-2xl font-black text-slate-950">Yêu cầu công việc</h2>
@@ -931,9 +1001,11 @@ function StakeProofBlock({ proof }: { proof: StakeProof | null }) {
 }
 
 function SubmitAction({
+  canRetryIndex,
   canRunSubmit,
   error,
   helpText,
+  onRetryIndex,
   onSubmit,
   onSubmissionUriChange,
   phase,
@@ -941,9 +1013,11 @@ function SubmitAction({
   submissionUri,
   uriError,
 }: {
+  canRetryIndex: boolean;
   canRunSubmit: boolean;
   error: string;
   helpText: string;
+  onRetryIndex: () => void;
   onSubmit: () => void;
   onSubmissionUriChange: (value: string) => void;
   phase: SubmitPhase;
@@ -960,6 +1034,8 @@ function SubmitAction({
       ? "Đang confirm..."
       : phase === "indexing"
       ? "Đang index Mongo..."
+      : phase === "pending"
+      ? "Transaction đang chờ xác nhận"
       : phase === "success"
       ? "Submit completed"
       : phase === "error"
@@ -1003,11 +1079,17 @@ function SubmitAction({
         tone="worker"
         type="button"
         className="mt-4 w-full"
-        disabled={!canRunSubmit || running}
+        disabled={!canRunSubmit || running || phase === "pending"}
         onClick={onSubmit}
       >
         {running ? "Đang xử lý..." : "Submit and assign"}
       </Button>
+
+      {canRetryIndex ? (
+        <Button type="button" variant="secondary" className="mt-3 w-full" disabled={running} onClick={onRetryIndex}>
+          Retry Mongo index
+        </Button>
+      ) : null}
 
       {error ? (
         <SoftCard className="mt-4 border-rose-700 bg-rose-50 p-3 font-bold text-rose-700">

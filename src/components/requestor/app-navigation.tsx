@@ -79,19 +79,20 @@ export function AppNavigation() {
   const { connected, publicKey } = useWallet();
   const { activeRole, isRoleLoading } = useRoleState();
   const pathname = router.asPath.split("?")[0] || "/";
+  const isHome = pathname === "/";
   const walletAddress = connected && publicKey ? publicKey.toBase58() : null;
   const isRequestor = activeRole === "requestor";
   const roleItems =
     connected && activeRole && !isRequestor ? roleNavItems[activeRole] : [];
   const navItems: NavItem[] = [
-    ...(!connected
+    ...(!connected && !isHome
       ? [{ href: "/", label: "Kết nối", icon: LayoutDashboard }]
       : []),
     ...(connected && !isRoleLoading && !activeRole
       ? [{ href: "/onboarding", label: "Chọn role", icon: UserCog }]
       : []),
     ...roleItems,
-    ...(!isRequestor ? [consoleNavItem] : []),
+    ...(!isHome && !isRequestor ? [consoleNavItem] : []),
   ];
 
   return (
@@ -130,7 +131,7 @@ export function AppNavigation() {
                 </Button>
               );
             })}
-            {connected ? (
+            {connected && !isHome ? (
               <Button
                 asChild
                 variant={pathname === "/onboarding" ? "default" : "secondary"}
@@ -143,9 +144,11 @@ export function AppNavigation() {
               </Button>
             ) : null}
           </nav>
-          <div className="min-h-12 [&_.wallet-adapter-button]:h-12 [&_.wallet-adapter-button]:rounded-lg [&_.wallet-adapter-button]:border-2 [&_.wallet-adapter-button]:border-slate-950 [&_.wallet-adapter-button]:bg-white [&_.wallet-adapter-button]:px-4 [&_.wallet-adapter-button]:text-sm [&_.wallet-adapter-button]:font-extrabold [&_.wallet-adapter-button]:text-slate-950 [&_.wallet-adapter-button]:shadow-[3px_3px_0_#111827]">
-            <WalletMultiButton />
-          </div>
+          {!isHome ? (
+            <div className="min-h-12 [&_.wallet-adapter-button]:h-12 [&_.wallet-adapter-button]:rounded-lg [&_.wallet-adapter-button]:border-2 [&_.wallet-adapter-button]:border-slate-950 [&_.wallet-adapter-button]:bg-white [&_.wallet-adapter-button]:px-4 [&_.wallet-adapter-button]:text-sm [&_.wallet-adapter-button]:font-extrabold [&_.wallet-adapter-button]:text-slate-950 [&_.wallet-adapter-button]:shadow-[3px_3px_0_#111827]">
+              <WalletMultiButton />
+            </div>
+          ) : null}
         </div>
       </div>
     </header>

@@ -12,7 +12,8 @@ pub struct StakeToUnlock<'info> {
         mut,
         seeds = [b"task", task.id.to_le_bytes().as_ref()],
         bump = task.bump,
-        constraint = task.status == TaskStatus::Open @ TaskError::InvalidStatus
+        constraint = task.status == TaskStatus::Open @ TaskError::InvalidStatus,
+        constraint = task.requestor != worker.key() @ TaskError::UnauthorizedWorker
     )]
     pub task: Box<Account<'info, Task>>,
 

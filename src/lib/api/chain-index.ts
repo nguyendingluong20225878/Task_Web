@@ -31,6 +31,13 @@ type IndexTaskErrorResponse = {
   };
 };
 
+export class ChainIndexError extends Error {
+  constructor(message: string, public readonly code?: string) {
+    super(message);
+    this.name = "ChainIndexError";
+  }
+}
+
 export async function indexTaskAfterTransaction(
   input: IndexTaskAfterTransactionInput
 ): Promise<IndexTaskAfterTransactionResult> {
@@ -60,7 +67,9 @@ export async function indexTaskAfterTransaction(
       payload && "error" in payload && payload.error?.code
         ? ` (${payload.error.code})`
         : "";
-    throw new Error(`MongoDB indexing failed${code}: ${message}`);
+    throw new ChainIndexError(`MongoDB indexing failed${code}: ${message}`,
+      payload && "error" in payload ? payload.error?.code : undefined
+    );
   }
 
   return payload;

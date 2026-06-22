@@ -28,7 +28,7 @@ const ROLE_DESCRIPTIONS: Record<Role, string> = {
 };
 
 function shortAddress(address: string) {
-  return `${address.slice(0, 4)}...${address.slice(-4)}`;
+  return address.slice(0, 4) + "..." + address.slice(-4);
 }
 
 export default function OnboardingPage() {
@@ -38,6 +38,8 @@ export default function OnboardingPage() {
     activeRole,
     getDashboardPath,
     isRoleLoading,
+    roles,
+    setActiveRoleForConnectedWallet,
     setRoleForConnectedWallet,
     walletAddress,
   } = useRoleState();
@@ -45,44 +47,33 @@ export default function OnboardingPage() {
   const isChangingRole = router.isReady && router.query.changeRole === "1";
 
   useEffect(() => {
-    if (!router.isReady) {
+    if (!router.isReady || !connected || isRoleLoading || isChangingRole || !activeRole) {
       return;
     }
-
-    if (!connected) {
-      void router.replace("/");
-      return;
-    }
-
-    if (isRoleLoading || isChangingRole || !activeRole) {
-      return;
-    }
-
     void router.replace(getDashboardPath(activeRole));
-  }, [
-    activeRole,
-    connected,
-    getDashboardPath,
-    isChangingRole,
-    isRoleLoading,
-    router,
-  ]);
+  }, [activeRole, connected, getDashboardPath, isChangingRole, isRoleLoading, router]);
 
   const roleOptions = useMemo(() => ROLES.map((role) => role), []);
+  const availableRoles = roleOptions.filter((role) => !roles.includes(role));
 
   function handleChooseRole(role: Role) {
     setSelectedRole(role);
-    setRoleForConnectedWallet(role);
+    if (roles.includes(role)) {
+      setActiveRoleForConnectedWallet(role);
+    } else {
+      setRoleForConnectedWallet(role);
+    }
     void router.replace(getDashboardPath(role));
   }
 
   const isRedirecting = !connected || (connected && !isChangingRole && activeRole);
+  const title = isChangingRole ? "Manage Roles" : "Choose Your Role";
 
   return (
     <>
       <Head>
-        <title>Choose Role | Task Web</title>
-        <meta name="description" content="Choose a Task Web role for the connected wallet." />
+        <title>{title} | Task Web</title>
+        <meta name="description" content="Choose the roles for the connected Task Web wallet." />
         <link rel="icon" href="/favicon.svg" />
       </Head>
 
@@ -94,45 +85,85 @@ export default function OnboardingPage() {
                 <span className="inline-flex rounded-md border-4 border-black bg-[var(--accent)] px-3 py-1 text-xs font-black uppercase">
                   Solana Devnet
                 </span>
-                <h1 className="mt-4 text-3xl font-black text-gray-950 sm:text-5xl">
-                  Choose Your Role
-                </h1>
+                <h1 className="mt-4 text-3xl font-black text-gray-950 sm:text-5xl">{title}</h1>
                 <p className="mt-3 max-w-xl font-bold text-gray-700">
-                  Pick how this wallet will use Task Web.
+                  A wallet can use every role, but only one role on each task.
                 </p>
               </div>
               <WalletMultiButton />
             </div>
 
             <div className="mt-6 rounded-lg border-4 border-black bg-[var(--muted)] p-4 text-sm font-bold text-gray-700">
-              {walletAddress ? `Wallet: ${shortAddress(walletAddress)}` : "Wallet: checking connection..."}
+              {walletAddress ? "Wallet: " + shortAddress(walletAddress) : "Wallet: checking connection..."}
             </div>
 
             {isRoleLoading || isRedirecting ? (
-              <p className="mt-6 font-black text-gray-800">
-                Dang kiem tra role...
-              </p>
+              <p className="mt-6 font-black text-gray-800">Dang kiem tra role...</p>
             ) : (
-              <div className="mt-7 grid gap-4 sm:grid-cols-3">
-                {roleOptions.map((role) => (
-                  <button
-                    key={role}
-                    type="button"
-                    disabled={selectedRole !== null}
-                    onClick={() => handleChooseRole(role)}
-                    className="min-h-40 rounded-lg border-4 border-black bg-white p-5 text-left shadow-[5px_5px_0_#111827] transition hover:-translate-y-0.5 hover:bg-[var(--primary)] disabled:cursor-wait disabled:opacity-70"
-                  >
-                    <span className="text-xl font-black text-gray-950">{ROLE_LABELS[role]}</span>
-                    <span className="mt-3 block text-sm font-bold text-gray-700">
-                      {ROLE_DESCRIPTIONS[role]}
-                    </span>
-                  </button>
-                ))}
+              <div className="mt-7 grid gap-6">
+                {isChangingRole && roles.length > 0 ? (
+                  <div>
+                    <p className="mb-3 text-sm font-black uppercase text-gray-600">Roles da co</p>
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      {roles.map((role) => (
+                        <RoleCard
+                          key={role}
+                          disabled={selectedRole !== null}
+                          label={activeRole === role ? ROLE_LABELS[role] + " (active)" : ROLE_LABELS[role]}
+                          onClick={() => handleChooseRole(role)}
+                          role={role}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {availableRoles.length > 0 ? (
+                  <div>
+                    <p className="mb-3 text-sm font-black uppercase text-gray-600">
+                      {roles.length ? "Them role" : "Chon role dau tien"}
+                    </p>
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      {availableRoles.map((role) => (
+                        <RoleCard
+                          key={role}
+                          disabled={selectedRole !== null}
+                          label={ROLE_LABELS[role]}
+                          onClick={() => handleChooseRole(role)}
+                          role={role}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
         </section>
       </main>
     </>
+  );
+}
+
+function RoleCard({
+  disabled,
+  label,
+  onClick,
+  role,
+}: {
+  disabled: boolean;
+  label: string;
+  onClick: () => void;
+  role: Role;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="min-h-40 rounded-lg border-4 border-black bg-white p-5 text-left shadow-[5px_5px_0_#111827] transition hover:-translate-y-0.5 hover:bg-[var(--primary)] disabled:cursor-wait disabled:opacity-70"
+    >
+      <span className="text-xl font-black text-gray-950">{label}</span>
+      <span className="mt-3 block text-sm font-bold text-gray-700">{ROLE_DESCRIPTIONS[role]}</span>
+    </button>
   );
 }

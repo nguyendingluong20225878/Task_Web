@@ -1,7 +1,7 @@
 import {
   type RequestorTask,
   type RequestorTaskStatus,
-} from "@/lib/requestor/mock-data";
+} from "@/lib/requestor/types";
 
 type IndexedTaskStatus =
   | "Open"
@@ -112,6 +112,7 @@ export function mapIndexedTaskToRequestorTask(
     rewardAmount: toNumber(task.bountyAmount),
     token: "USDC",
     tokenMint: task.tokenMint,
+    requestor: task.requestor,
     worker: task.worker,
     workerStakeAmount: toNumber(task.workerStakeAmount),
     requiredJudgesM: task.requiredJudgesM,
@@ -120,6 +121,7 @@ export function mapIndexedTaskToRequestorTask(
     votingDeadline,
     publicMetadataUri: task.publicMetadataUri,
     encryptedTaskDetailUri: task.encryptedTaskDetailUri,
+    encryptedSubmissionUri: task.encryptedSubmissionUri,
     network: "Solana Devnet",
     deadline: submissionDeadline,
     escrowStatus:
@@ -157,8 +159,9 @@ export function mapIndexedTaskToRequestorTask(
       { label: "tokenMint", address: task.tokenMint, url: explorerAccountUrl(task.tokenMint) },
     ].filter((account) => account.address),
     isSimulated: task.isSimulated,
-    indexStatus: "indexed",
+    indexStatus: task.lastIndexedSlot ? "indexed" : "not_indexed",
     indexedSlot: task.lastIndexedSlot,
+    indexError: undefined,
   };
 }
 

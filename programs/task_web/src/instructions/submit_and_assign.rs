@@ -80,6 +80,10 @@ pub fn handler(ctx: Context<SubmitAndAssign>, encrypted_submission_uri: String) 
             TaskError::UnauthorizedWorker
         );
         require!(
+            judge_record.judge != task.requestor,
+            TaskError::NotAssignedJudge
+        );
+        require!(
             judge_record.judge == ctx.accounts.judge_registry.judges[i],
             TaskError::InvalidJudgePool
         );

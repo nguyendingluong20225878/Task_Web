@@ -12,7 +12,6 @@ import {
 } from "react";
 
 export const ROLES = ["requestor", "worker", "judge"] as const;
-
 export type Role = (typeof ROLES)[number];
 
 export const ROLE_DASHBOARD_PATHS: Record<Role, string> = {
@@ -24,21 +23,43 @@ export const ROLE_DASHBOARD_PATHS: Record<Role, string> = {
 const ROLE_STORAGE_KEY_PREFIX = "task-web:role:";
 const RoleStateContext = createContext<RoleStateContextValue | null>(null);
 
+type StoredRoleState = {
+  roles: Role[];
+  activeRole: Role | null;
+};
+
 type RoleStateContextValue = {
   activeRole: Role | null;
+  roles: Role[];
   walletAddress: string | null;
   setRoleForConnectedWallet: (role: Role) => void;
+  setActiveRoleForConnectedWallet: (role: Role) => void;
   clearRoleForConnectedWallet: () => void;
   getDashboardPath: (role: Role) => string;
   isRoleLoading: boolean;
 };
 
-function isRole(value: string | null): value is Role {
-  return ROLES.some((role) => role === value);
+function isRole(value: unknown): value is Role {
+  return typeof value === "string" && ROLES.some((role) => role === value);
+}
+
+function normalizeStoredRoleState(value: unknown): StoredRoleState | null {
+  if (isRole(value)) return { roles: [value], activeRole: value };
+  if (!value || typeof value !== "object") return null;
+
+  const stored = value as { roles?: unknown; activeRole?: unknown };
+  const roles = Array.isArray(stored.roles)
+    ? stored.roles.filter(isRole).filter((role, index, values) => values.indexOf(role) === index)
+    : [];
+  const activeRole = isRole(stored.activeRole) && roles.includes(stored.activeRole)
+    ? stored.activeRole
+    : roles[0] ?? null;
+
+  return { roles, activeRole };
 }
 
 function getRoleStorageKey(walletAddress: string): string {
-  return `${ROLE_STORAGE_KEY_PREFIX}${walletAddress}`;
+  return ROLE_STORAGE_KEY_PREFIX + walletAddress;
 }
 
 function canUseLocalStorage(): boolean {
@@ -49,110 +70,130 @@ export function getDashboardPath(role: Role): string {
   return ROLE_DASHBOARD_PATHS[role];
 }
 
-export function getStoredRole(walletAddress: string): Role | null {
-  if (!walletAddress || !canUseLocalStorage()) {
-    return null;
-  }
+export function getStoredRoleState(walletAddress: string): StoredRoleState {
+  if (!walletAddress || !canUseLocalStorage()) return { roles: [], activeRole: null };
+
+  const rawValue = window.localStorage.getItem(getRoleStorageKey(walletAddress));
+  if (!rawValue) return { roles: [], activeRole: null };
 
   try {
-    const storedRole = window.localStorage.getItem(getRoleStorageKey(walletAddress));
-    return isRole(storedRole) ? storedRole : null;
+    return normalizeStoredRoleState(JSON.parse(rawValue)) ?? { roles: [], activeRole: null };
   } catch {
-    return null;
+    return normalizeStoredRoleState(rawValue) ?? { roles: [], activeRole: null };
   }
 }
 
-export function setStoredRole(walletAddress: string, role: Role): void {
-  if (!walletAddress || !canUseLocalStorage()) {
-    return;
-  }
+export function getStoredRole(walletAddress: string): Role | null {
+  return getStoredRoleState(walletAddress).activeRole;
+}
 
-  window.localStorage.setItem(getRoleStorageKey(walletAddress), role);
+function setStoredRoleState(walletAddress: string, value: StoredRoleState): void {
+  if (!walletAddress || !canUseLocalStorage()) return;
+  window.localStorage.setItem(getRoleStorageKey(walletAddress), JSON.stringify(value));
 }
 
 export function clearStoredRole(walletAddress: string): void {
-  if (!walletAddress || !canUseLocalStorage()) {
-    return;
-  }
-
+  if (!walletAddress || !canUseLocalStorage()) return;
   window.localStorage.removeItem(getRoleStorageKey(walletAddress));
 }
 
 export function RoleProvider({ children }: { children: ReactNode }) {
-  const { connected, publicKey } = useWallet();
+  const { connected, publicKey, signMessage } = useWallet();
   const walletAddress = connected && publicKey ? publicKey.toBase58() : null;
-  const [storedRoleState, setStoredRoleState] = useState<{
-    activeRole: Role | null;
-    walletAddress: string | null;
-  }>({
+  const [storedRoleState, setStoredRoleStateValue] = useState<StoredRoleState>({
+    roles: [],
     activeRole: null,
-    walletAddress: null,
   });
-  const activeRole =
-    walletAddress && storedRoleState.walletAddress === walletAddress ? storedRoleState.activeRole : null;
-  const isRoleLoading = Boolean(walletAddress && storedRoleState.walletAddress !== walletAddress);
+  const [storedWalletAddress, setStoredWalletAddress] = useState<string | null>(null);
+  const activeRole = walletAddress && storedWalletAddress === walletAddress
+    ? storedRoleState.activeRole
+    : null;
+  const roles = walletAddress && storedWalletAddress === walletAddress
+    ? storedRoleState.roles
+    : [];
+  const isRoleLoading = Boolean(walletAddress && storedWalletAddress !== walletAddress);
 
   useEffect(() => {
+    if (!walletAddress || !signMessage) { void fetch("/api/auth/logout", { method: "POST" }); return; }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const nonceResponse = await fetch("/api/auth/nonce");
+        const nonceData = await nonceResponse.json();
+        if (!nonceResponse.ok || cancelled) return;
+        const message = `Task Web authentication\nWallet: ${walletAddress}\nNonce: ${nonceData.nonce}\nExpires: ${new Date(nonceData.expiresAt).toISOString()}`;
+        const signature = await signMessage(new TextEncoder().encode(message));
+        if (cancelled) return;
+        await fetch("/api/auth/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ wallet: walletAddress, nonce: nonceData.nonce, message, signature: btoa(String.fromCharCode(...signature)) }) });
+      } catch { /* protected data callers surface authentication errors */ }
+    })();
+    return () => { cancelled = true; };
+  }, [signMessage, walletAddress]);
+  useEffect(() => {
     if (!walletAddress) {
-      setStoredRoleState({ activeRole: null, walletAddress: null });
+      setStoredRoleStateValue({ roles: [], activeRole: null });
+      setStoredWalletAddress(null);
       return;
     }
 
-    setStoredRoleState({
-      activeRole: getStoredRole(walletAddress),
-      walletAddress,
-    });
+    setStoredRoleStateValue(getStoredRoleState(walletAddress));
+    setStoredWalletAddress(walletAddress);
   }, [walletAddress]);
 
-  const setRoleForConnectedWallet = useCallback(
-    (role: Role) => {
-      if (!walletAddress) {
-        return;
-      }
+  const persist = useCallback((next: StoredRoleState) => {
+    if (!walletAddress) return;
+    setStoredRoleState(walletAddress, next);
+    setStoredRoleStateValue(next);
+    setStoredWalletAddress(walletAddress);
+  }, [walletAddress]);
 
-      setStoredRole(walletAddress, role);
-      setStoredRoleState({ activeRole: role, walletAddress });
-    },
-    [walletAddress],
-  );
+  const setRoleForConnectedWallet = useCallback((role: Role) => {
+    if (!walletAddress) return;
+    const current = storedWalletAddress === walletAddress ? storedRoleState : getStoredRoleState(walletAddress);
+    const nextRoles = current.roles.includes(role) ? current.roles : [...current.roles, role];
+    persist({ roles: nextRoles, activeRole: role });
+  }, [persist, storedRoleState, storedWalletAddress, walletAddress]);
+
+  const setActiveRoleForConnectedWallet = useCallback((role: Role) => {
+    if (!roles.includes(role)) return;
+    persist({ roles, activeRole: role });
+  }, [persist, roles]);
 
   const clearRoleForConnectedWallet = useCallback(() => {
     if (!walletAddress) {
-      setStoredRoleState({ activeRole: null, walletAddress: null });
+      setStoredRoleStateValue({ roles: [], activeRole: null });
+      setStoredWalletAddress(null);
       return;
     }
-
     clearStoredRole(walletAddress);
-    setStoredRoleState({ activeRole: null, walletAddress });
+    setStoredRoleStateValue({ roles: [], activeRole: null });
+    setStoredWalletAddress(walletAddress);
   }, [walletAddress]);
 
-  const value = useMemo<RoleStateContextValue>(
-    () => ({
-      activeRole,
-      walletAddress,
-      setRoleForConnectedWallet,
-      clearRoleForConnectedWallet,
-      getDashboardPath,
-      isRoleLoading,
-    }),
-    [
-      activeRole,
-      walletAddress,
-      setRoleForConnectedWallet,
-      clearRoleForConnectedWallet,
-      isRoleLoading,
-    ],
-  );
+  const value = useMemo<RoleStateContextValue>(() => ({
+    activeRole,
+    roles,
+    walletAddress,
+    setRoleForConnectedWallet,
+    setActiveRoleForConnectedWallet,
+    clearRoleForConnectedWallet,
+    getDashboardPath,
+    isRoleLoading,
+  }), [
+    activeRole,
+    clearRoleForConnectedWallet,
+    isRoleLoading,
+    roles,
+    setActiveRoleForConnectedWallet,
+    setRoleForConnectedWallet,
+    walletAddress,
+  ]);
 
   return <RoleStateContext.Provider value={value}>{children}</RoleStateContext.Provider>;
 }
 
 export function useRoleState(): RoleStateContextValue {
   const context = useContext(RoleStateContext);
-
-  if (!context) {
-    throw new Error("useRoleState must be used within a RoleProvider");
-  }
-
+  if (!context) throw new Error("useRoleState must be used within a RoleProvider");
   return context;
 }

@@ -273,6 +273,7 @@ describe("task_web QA coverage", () => {
       expect(code).to.include("expected_pda == account_info.key()");
       expect(code).to.include("!candidates.contains(&judge_record.judge)");
       expect(code).to.include("judge_record.judge != task.worker");
+      expect(code).to.include("judge_record.judge != task.requestor");
     });
 
     it("TC09 validates judge_vote blocks duplicate and non-assigned votes", () => {
@@ -290,6 +291,7 @@ describe("task_web QA coverage", () => {
       const code = src("instructions/stake_to_unlock.rs");
 
       expect(code).to.include("constraint = task.status == TaskStatus::Open");
+      expect(code).to.include("constraint = task.requestor != worker.key()");
       expect(code).to.include("system_instruction::transfer");
       expect(code).to.include("&ctx.accounts.worker.key()");
       expect(code).to.include("&ctx.accounts.worker_escrow.key()");
@@ -307,6 +309,23 @@ describe("task_web QA coverage", () => {
       expect(code).to.include("TaskError::NotAssignedJudge");
       expect(code).to.include("assignment.task = task.key()");
       expect(code).to.include("assignment.judge = judge_key");
+    });
+
+
+    it("TC09c keeps one wallet in one role per task and reconciles by signature", () => {
+      const stakeCode = src("instructions/stake_to_unlock.rs");
+      const submitCode = src("instructions/submit_and_assign.rs");
+      const clientCode = fs.readFileSync(
+        path.resolve("src/lib/solana/client.ts"),
+        "utf8"
+      );
+
+      expect(stakeCode).to.include("task.requestor != worker.key()");
+      expect(submitCode).to.include("judge_record.judge != task.worker");
+      expect(submitCode).to.include("judge_record.judge != task.requestor");
+      expect(clientCode).to.include("getSignatureStatuses([signature]");
+      expect(clientCode).to.include("const latestBlockhash = await connection.getLatestBlockhash");
+      expect(clientCode).to.include("confirmTransaction({ signature, ...latestBlockhash }");
     });
 
     it("TC10 settles no-quorum after deadline as Inconclusive", () => {

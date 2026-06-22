@@ -25,29 +25,26 @@ import { Card, SoftCard } from "@/components/ui/card";
 import { Field, FieldLabel, Input } from "@/components/ui/form";
 import { Pagination } from "@/components/ui/pagination";
 import { indexTaskAfterTransaction } from "@/lib/api/chain-index";
-import { fetchRequestorTasks } from "@/lib/api/requestor-tasks";
+import { getRequestorDrafts, removeRequestorDraft, saveRequestorDraft } from "@/lib/requestor/drafts";
+import { fetchRequestorTasks, type IndexedRequestorTask } from "@/lib/api/requestor-tasks";
 import { useRoleState } from "@/lib/auth/role-state";
 import {
-  getAllSubmissions,
-  getLocalRequestorTasksOnly,
-  getStoredRequestorTasks,
-  mockRequestorTasks,
-  mockJudges,
   requestorStatusLabels,
   requestorStatusOrder,
-  saveStoredRequestorTask,
   submissionStatusLabels,
+  judgeStatusLabels,
   type RequestorJudge,
   type RequestorSubmission,
   type RequestorTask,
   type RequestorTaskStatus,
   type SortOption,
   type SubmissionStatus,
-} from "@/lib/requestor/mock-data";
+} from "@/lib/requestor/types";
 import {
   DEMO_TOKEN_MINT,
   PROGRAM_ID,
   RPC_URL,
+  cancelOpenTask,
   createAssociatedTokenAccountForConnectedWallet,
   explorerAccountUrl,
   getAssociatedTokenAddress,
@@ -57,6 +54,7 @@ import {
   type AnchorWalletLike,
   type Web3Result,
 } from "@/lib/solana/client";
+import { isProtocolUri, publicUriHref } from "@/lib/task-presentation";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
@@ -69,24 +67,15 @@ const PUBLIC_METADATA_URI_PREFIXES = [
   "ipfs://",
   "ar://",
   "https://",
-  "local://",
 ];
 const ENCRYPTED_DETAIL_URI_PREFIXES = [
   "enc://",
   "ipfs://",
   "ar://",
   "https://",
-  "local://",
 ];
 
-const judgeStatusLabels: Record<
-  NonNullable<RequestorJudge["status"]>,
-  string
-> = {
-  Ready: "Sẵn sàng",
-  Reviewing: "Đang chấm",
-  Completed: "Hoàn tất",
-};
+
 
 function formatCurrency(value: number, token = "USDC") {
   return `${new Intl.NumberFormat("vi-VN").format(value)} ${token}`;
@@ -106,10 +95,32 @@ function toDatetimeLocal(date: Date) {
 }
 
 function isAllowedStorageUri(value: string, prefixes: string[]) {
-  const trimmed = value.trim();
-  return (
-    Boolean(trimmed) && prefixes.some((prefix) => trimmed.startsWith(prefix))
-  );
+  return isProtocolUri(value, prefixes === ENCRYPTED_DETAIL_URI_PREFIXES);
+}
+
+function shortTaskId(taskId: string): string {
+  if (!taskId || taskId.length <= 8) return taskId;
+  return `...${taskId.slice(-4)}`;
+}
+
+function getStatusBadgeColor(status: RequestorTaskStatus): string {
+  if (status === "Open") return "bg-teal-100 border-teal-300 text-teal-900";
+  if (status === "InProgress") return "bg-amber-100 border-amber-300 text-amber-900";
+  if (status === "Submitted") return "bg-purple-100 border-purple-300 text-purple-900";
+  if (status === "Judged") return "bg-amber-100 border-amber-300 text-amber-900";
+  if (status === "Completed") return "bg-green-100 border-green-300 text-green-900";
+  if (status === "Failed" || status === "Cancelled" || status === "Inconclusive") 
+    return "bg-red-100 border-red-300 text-red-900";
+  if (status === "Draft") return "bg-gray-100 border-gray-300 text-gray-900";
+  return "bg-white border-slate-300 text-slate-900";
+}
+
+function getStatusTextColor(status: RequestorTaskStatus): string {
+  if (status === "Completed") return "text-green-700";
+  if (status === "Judged" || status === "Submitted") return "text-amber-700";
+  if (status === "Failed" || status === "Cancelled" || status === "Inconclusive") 
+    return "text-red-700";
+  return "text-slate-700";
 }
 
 function statusTone(status: RequestorTaskStatus | SubmissionStatus) {
@@ -198,44 +209,41 @@ function DataSourceWarning({ message }: { message?: string }) {
   );
 }
 
-function mergeRequestorTasks(
-  indexedTasks: RequestorTask[],
-  localTasks: RequestorTask[]
-) {
-  const localFallbackTasks = localTasks.filter(
-    (task) =>
-      task.status === "Draft" ||
-      task.indexStatus === "stale" ||
-      task.indexStatus === "index_failed"
-  );
+function mergeRequestorTasks(indexedTasks: RequestorTask[], drafts: RequestorTask[]) {
   const seen = new Set<string>();
-  const merged: RequestorTask[] = [];
+  const mergedTasks: RequestorTask[] = [];
 
-  for (const task of [...indexedTasks, ...localFallbackTasks]) {
-    const key =
-      task.status === "Draft"
-        ? task.id
-        : task.onChainTaskId || task.taskPda || task.id;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    merged.push(task);
-  }
+  // Add indexed tasks first
+  indexedTasks.forEach((task) => {
+    const key = task.onChainTaskId || task.taskPda || task.id;
+    if (!seen.has(key)) {
+      seen.add(key);
+      mergedTasks.push(task);
+    }
+  });
 
-  return sortTasks(merged, "newest");
+  // Add drafts, ensuring they don't overwrite indexed tasks with the same ID
+  drafts.forEach((draft) => {
+    const key = draft.id; // Drafts use their local ID
+    if (!seen.has(key)) {
+      seen.add(key);
+      mergedTasks.push(draft);
+    }
+  });
+
+  return sortTasks(mergedTasks, "newest");
 }
 
 function useRequestorTasks() {
-  const [tasks, setTasks] = useState<RequestorTask[]>(mockRequestorTasks);
+  const [tasks, setTasks] = useState<RequestorTask[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [sourceWarning, setSourceWarning] = useState("");
   const { activeRole, walletAddress } = useRoleState();
 
   useEffect(() => {
     let cancelled = false;
-    const localTasks = getLocalRequestorTasksOnly();
-    const localWithMockFallback = getStoredRequestorTasks();
-
-    setTasks(localWithMockFallback);
+    const drafts = getRequestorDrafts(walletAddress ?? undefined);
+    setTasks(drafts);
     setSourceWarning("");
 
     if (!walletAddress || activeRole !== "requestor") {
@@ -247,16 +255,13 @@ function useRequestorTasks() {
     setIsLoading(true);
     fetchRequestorTasks(walletAddress)
       .then((indexedTasks) => {
-        if (cancelled) return;
-        const merged = mergeRequestorTasks(indexedTasks, localTasks);
-        setTasks(merged.length ? merged : localWithMockFallback);
+        if (!cancelled) setTasks(mergeRequestorTasks(indexedTasks, drafts));
       })
       .catch(() => {
-        if (cancelled) return;
-        setTasks(localWithMockFallback);
-        setSourceWarning(
-          "Không tải được dữ liệu MongoDB, đang dùng dữ liệu local/demo."
-        );
+        if (!cancelled) {
+          setTasks(drafts);
+          setSourceWarning("MongoDB indexed data is unavailable. Only this wallet's unpublished drafts are shown.");
+        }
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -269,7 +274,6 @@ function useRequestorTasks() {
 
   return { tasks, setTasks, isLoading, sourceWarning };
 }
-
 function usePagination<T>(items: T[]) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
@@ -484,28 +488,13 @@ function RequestorPageFrame({ children }: { children: React.ReactNode }) {
 
 export function RequestorDashboardPage() {
   const { tasks, isLoading, sourceWarning } = useRequestorTasks();
-  const submissions = useMemo(() => getAllSubmissions(tasks), [tasks]);
   const recentTasks = useMemo(
     () => sortTasks(tasks, "newest").slice(0, 5),
     [tasks]
   );
-  const latestSubmissions = useMemo(
-    () =>
-      [...submissions]
-        .sort(
-          (a, b) =>
-            new Date(b.submittedAt).getTime() -
-            new Date(a.submittedAt).getTime()
-        )
-        .slice(0, 5),
-    [submissions]
-  );
   const lockedReward = tasks
     .filter((task) => task.escrowStatus.toLowerCase().includes("khóa"))
     .reduce((total, task) => total + task.rewardAmount, 0);
-  const pendingSubmissions = submissions.filter(
-    (submission) => submission.status === "PendingJudgeReview"
-  ).length;
   const completedTasks = tasks.filter(
     (task) => task.status === "Completed"
   ).length;
@@ -542,11 +531,10 @@ export function RequestorDashboardPage() {
             icon: Lock,
           },
           {
-            label: "Submission chờ xử lý",
-            value: pendingSubmissions,
-            icon: Send,
+            label: "Đã hoàn thành",
+            value: completedTasks,
+            icon: Check,
           },
-          { label: "Đã hoàn thành", value: completedTasks, icon: Check },
         ].map((item) => {
           const Icon = item.icon;
           return (
@@ -561,7 +549,7 @@ export function RequestorDashboardPage() {
         })}
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-5 lg:grid-cols-1">
         <Card tone="requestor" className="p-5 sm:p-6">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-2xl font-black lg:text-3xl">Task gần đây</h2>
@@ -574,18 +562,6 @@ export function RequestorDashboardPage() {
               <TaskCard key={task.id} task={task} />
             ))}
           </div>
-        </Card>
-
-        <Card tone="requestor" className="p-5">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-2xl font-black lg:text-3xl">
-              Submission mới nhất
-            </h2>
-            <Button asChild variant="secondary" size="sm">
-              <Link href="/requestor/submissions">Theo dõi</Link>
-            </Button>
-          </div>
-          <SubmissionList submissions={latestSubmissions} compact />
         </Card>
       </div>
     </RequestorPageFrame>
@@ -747,7 +723,6 @@ type CreateTaskForm = {
   network: string;
   deadline: string;
   escrowNote: string;
-  judgeIds: string[];
 };
 
 type PublishPhase =
@@ -766,6 +741,14 @@ type DetailActionStatus =
   | "success"
   | "error";
 
+type CancelPhase =
+  | "idle"
+  | "preparing"
+  | "sending"
+  | "confirming"
+  | "indexing"
+  | "success"
+  | "error";
 type PayoutPhase =
   | "idle"
   | "preparing"
@@ -803,7 +786,6 @@ function createInitialCreateForm(): CreateTaskForm {
     network: "Solana Devnet",
     deadline: submissionDeadline,
     escrowNote: "Phần thưởng sẽ được khóa trong escrow khi đăng task.",
-    judgeIds: [],
   };
 }
 
@@ -982,9 +964,6 @@ export function RequestorCreateTaskPage() {
       }
     }
 
-    if (targetStep === 2 && form.judgeIds.length === 0) {
-      nextErrors.judgeIds = "Vui lòng chọn ít nhất một người chấm.";
-    }
 
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
@@ -995,9 +974,6 @@ export function RequestorCreateTaskPage() {
     setStep((current) => Math.min(current + 1, steps.length - 1));
   }
 
-  function selectedJudges() {
-    return mockJudges.filter((judge) => form.judgeIds.includes(judge.id));
-  }
 
   function findRequestorAta() {
     setAtaStatus("");
@@ -1101,11 +1077,7 @@ export function RequestorCreateTaskPage() {
       payoutStatus: "Chưa payout",
       createdAt: now,
       updatedAt: now,
-      judges: selectedJudges().map((judge) => ({
-        ...judge,
-        status: "Ready",
-        reviewProgress: 0,
-      })),
+      judges: [],
       submissions: [],
       signature: proofResult?.signature,
       slot: proofResult?.slot,
@@ -1125,9 +1097,14 @@ export function RequestorCreateTaskPage() {
   }
 
   function saveDraft() {
+    const walletAddress = publicKey?.toBase58();
+    if (!walletAddress) {
+      setPublishPhase("error");
+      setPublishError("Connect the requestor wallet before saving a wallet-scoped draft.");
+      return;
+    }
     const task = buildTask("Draft");
-
-    saveStoredRequestorTask(task);
+    saveRequestorDraft(task, walletAddress);
     void router?.push(`/requestor/tasks/${task.id}`);
   }
 
@@ -1195,9 +1172,14 @@ export function RequestorCreateTaskPage() {
         };
       }
 
-      saveStoredRequestorTask(task);
+      if (task.indexStatus === "index_failed") {
+        setPublishPhase("error");
+        setPublishError(task.indexError ?? "The transaction is confirmed, but MongoDB indexing failed. Retry indexing before leaving this page.");
+        return;
+      }
+      removeRequestorDraft(`REQ-${form.taskId.trim()}`, wallet.publicKey.toBase58());
       setPublishPhase("success");
-      void router?.push(`/requestor/tasks/${task.id}`);
+      void router?.push(`/requestor/tasks/REQ-${form.taskId.trim()}`);
     } catch (caught) {
       setPublishPhase("error");
       setPublishError(mapSolanaError(caught));
@@ -1466,39 +1448,12 @@ export function RequestorCreateTaskPage() {
         ) : null}
 
         {step === 2 ? (
-          <div className="grid gap-4">
-            {mockJudges.map((judge) => {
-              const checked = form.judgeIds.includes(judge.id);
-              return (
-                <label
-                  key={judge.id}
-                  className="flex cursor-pointer flex-col gap-3 rounded-lg border-2 border-slate-950 bg-[#FFFDF3] p-4 md:flex-row md:items-center md:justify-between"
-                >
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(event) => {
-                          update(
-                            "judgeIds",
-                            event.target.checked
-                              ? [...form.judgeIds, judge.id]
-                              : form.judgeIds.filter((id) => id !== judge.id)
-                          );
-                        }}
-                      />
-                      <strong>{judge.name}</strong>
-                      <Badge>Điểm tin cậy {judge.trustScore}</Badge>
-                    </div>
-                    <p className="mt-1 break-all font-bold">{judge.wallet}</p>
-                    <p className="text-sm font-bold">{judge.reputation}</p>
-                  </div>
-                </label>
-              );
-            })}
-            <ErrorText value={errors.judgeIds} />
-          </div>
+          <SoftCard className="grid gap-3 p-5 font-bold">
+            <h2 className="text-2xl font-black">Judge protocol</h2>
+            <p>Judges are not selected per task. The program randomly assigns eligible judges from the on-chain JudgeRegistry only after a worker submits.</p>
+            <p>The judge stake is a protocol-level prerequisite locked when a judge registers. It is not a task-specific requestor charge or a configurable task stake.</p>
+            <p>requiredJudgesM controls the number of judges the protocol will assign; approvalThresholdN controls the settlement threshold.</p>
+          </SoftCard>
         ) : null}
 
         {step === 3 ? (
@@ -1572,16 +1527,8 @@ export function RequestorCreateTaskPage() {
               </div>
             </SoftCard>
             <SoftCard className="p-5">
-              <h3 className="text-2xl font-black">Người chấm</h3>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {selectedJudges().length ? (
-                  selectedJudges().map((judge) => (
-                    <Badge key={judge.id}>{judge.name}</Badge>
-                  ))
-                ) : (
-                  <Badge>Chưa chọn người chấm</Badge>
-                )}
-              </div>
+              <h3 className="text-2xl font-black">Judge protocol</h3>
+              <p className="mt-2 font-bold">Judges are assigned from the on-chain registry after submission. This task does not select judges or charge a task-specific judge stake.</p>
             </SoftCard>
           </div>
         ) : null}
@@ -1654,810 +1601,126 @@ export function RequestorTaskDetailPage({ taskId }: { taskId: string }) {
   const anchorWallet = useAnchorWallet();
   const { publicKey } = useWallet();
   const wallet = anchorWallet as AnchorWalletLike | undefined;
-  const [submissionPage, setSubmissionPage] = useState(1);
-  const [submissionPageSize, setSubmissionPageSize] = useState(10);
-  const [actionStatus, setActionStatus] = useState<DetailActionStatus>("idle");
-  const [actionError, setActionError] = useState("");
-  const [missingFields, setMissingFields] = useState<string[]>([]);
-  const [workerTokenAccount, setWorkerTokenAccount] = useState("");
-  const [requestorPayoutTokenAccount, setRequestorPayoutTokenAccount] =
-    useState("");
-  const [payoutPhase, setPayoutPhase] = useState<PayoutPhase>("idle");
-  const [payoutError, setPayoutError] = useState("");
+  const [cancelPhase, setCancelPhase] = useState<CancelPhase>("idle");
+  const [cancelError, setCancelError] = useState("");
+  const [cancelIndexError, setCancelIndexError] = useState("");
+  const [cancelConfirmationOpen, setCancelConfirmationOpen] = useState(false);
   const task = tasks.find((item) => item.id === taskId);
-  const submissions = task?.submissions ?? [];
-  const safePage = Math.min(
-    submissionPage,
-    Math.max(1, Math.ceil(submissions.length / submissionPageSize))
-  );
-  const visibleSubmissions = submissions.slice(
-    (safePage - 1) * submissionPageSize,
-    safePage * submissionPageSize
-  );
 
-  function updateTask(updater: (task: RequestorTask) => RequestorTask) {
-    if (!task) return;
-    const nextTask = updater(task);
-    saveStoredRequestorTask(nextTask);
-    setTasks((current) =>
-      current.map((item) => (item.id === task.id ? nextTask : item))
-    );
-  }
-
-  useEffect(() => {
-    if (!task) return;
-    setRequestorPayoutTokenAccount(task.requestorTokenAccount ?? "");
-    setWorkerTokenAccount("");
-    setPayoutPhase("idle");
-    setPayoutError("");
-  }, [task?.id, task?.requestorTokenAccount]);
-
-  const payoutChainTaskId = task ? readStoredOnChainTaskId(task).trim() : "";
-  const payoutEligible = task?.status === "Judged";
-  const hasPayoutChainData = Boolean(
-    payoutChainTaskId &&
-      /^\d+$/.test(payoutChainTaskId) &&
-      task?.taskPda &&
-      task?.tokenMint
-  );
-  const payoutDisabledReason = !payoutEligible
-    ? "Chỉ task đã chấm mới đủ điều kiện payout."
-    : !hasPayoutChainData
-    ? "Thiếu onChainTaskId numeric, taskPda hoặc tokenMint."
-    : "";
-  const isPayoutRunning =
-    payoutPhase === "preparing" ||
-    payoutPhase === "sending" ||
-    payoutPhase === "confirming" ||
-    payoutPhase === "indexing";
-
-  function deriveRequestorPayoutAta() {
-    setPayoutError("");
-    if (!publicKey) {
-      setPayoutError("Connect wallet trước khi derive requestor ATA.");
-      return;
-    }
-    if (!task?.tokenMint) {
-      setPayoutError("Thiếu tokenMint để derive requestor ATA.");
-      return;
-    }
-
-    try {
-      const ata = getAssociatedTokenAddress(
-        publicKey,
-        new PublicKey(task.tokenMint)
-      ).toBase58();
-      setRequestorPayoutTokenAccount(ata);
-    } catch (caught) {
-      setPayoutError(mapSolanaError(caught));
-    }
-  }
-
-  function deriveWorkerPayoutAta() {
-    setPayoutError("");
-    if (!task?.worker || !task.tokenMint) {
-      setPayoutError(
-        "Thiếu worker wallet hoặc tokenMint để derive worker ATA."
-      );
-      return;
-    }
-
-    try {
-      const ata = getAssociatedTokenAddress(
-        new PublicKey(task.worker),
-        new PublicKey(task.tokenMint)
-      ).toBase58();
-      setWorkerTokenAccount(ata);
-    } catch (caught) {
-      setPayoutError(mapSolanaError(caught));
-    }
-  }
-
-  async function completePayoutOnChain() {
-    if (!task) return;
-    setPayoutError("");
-    setPayoutPhase("idle");
-
+  async function cancelOpenTaskOnChain() {
+    if (!task || task.status !== "Open") return;
+    const chainTaskId = readStoredOnChainTaskId(task).trim();
     if (!wallet || !publicKey) {
-      setPayoutError("Connect wallet trước khi hoàn tất payout.");
-      setPayoutPhase("error");
+      setCancelPhase("error");
+      setCancelError("Connect the requestor wallet before cancelling this task.");
       return;
     }
-    if (!payoutChainTaskId || !/^\d+$/.test(payoutChainTaskId)) {
-      setPayoutError("Thiếu onChainTaskId numeric.");
-      setPayoutPhase("error");
-      return;
-    }
-    if (!task.taskPda || !task.tokenMint) {
-      setPayoutError("Thiếu taskPda hoặc tokenMint để payout.");
-      setPayoutPhase("error");
-      return;
-    }
-    if (!workerTokenAccount.trim()) {
-      setPayoutError("Vui lòng nhập Worker token account.");
-      setPayoutPhase("error");
-      return;
-    }
-    if (!requestorPayoutTokenAccount.trim()) {
-      setPayoutError("Vui lòng nhập Requestor token account.");
-      setPayoutPhase("error");
+    if (!/^\d+$/.test(chainTaskId)) {
+      setCancelPhase("error");
+      setCancelError("The indexed task does not have a numeric on-chain id.");
       return;
     }
 
+    setCancelError("");
+    setCancelIndexError("");
     try {
-      setPayoutPhase("preparing");
-      await Promise.resolve();
-      setPayoutPhase("sending");
-      await Promise.resolve();
-      setPayoutPhase("confirming");
-      const payoutResult = await settlePayment(
-        wallet,
-        payoutChainTaskId,
-        workerTokenAccount.trim(),
-        requestorPayoutTokenAccount.trim()
-      );
-
-      let indexMetadata: Pick<
-        RequestorTask,
-        "indexStatus" | "indexedSlot" | "indexError"
-      >;
-      setPayoutPhase("indexing");
+      setCancelPhase("preparing");
+      setCancelPhase("sending");
+      const result = await cancelOpenTask(wallet, chainTaskId, task.requestorTokenAccount);
+      setCancelPhase("confirming");
+      setCancelPhase("indexing");
       try {
-        const indexed = await indexTaskAfterTransaction({
-          taskId: payoutChainTaskId,
-          signature: payoutResult.signature,
-          instruction: "settle_payment",
+        await indexTaskAfterTransaction({
+          taskId: chainTaskId,
+          signature: result.signature,
+          instruction: "cancel_open_task",
           actor: publicKey.toBase58(),
-          slot: payoutResult.slot,
+          slot: result.slot,
         });
-        indexMetadata = {
-          indexStatus: "indexed",
-          indexedSlot: indexed.indexedSlot,
-          indexError: undefined,
-        };
-      } catch (indexCaught) {
-        indexMetadata = {
-          indexStatus: "index_failed",
-          indexedSlot: undefined,
-          indexError:
-            indexCaught instanceof Error
-              ? indexCaught.message
-              : String(indexCaught),
-        };
+        const indexedTasks = await fetchRequestorTasks(publicKey.toBase58());
+        setTasks((current) =>
+          mergeRequestorTasks(indexedTasks, current.filter((item) => item.status === "Draft"))
+        );
+        setCancelPhase("success");
+      } catch (caught) {
+        setCancelIndexError(caught instanceof Error ? caught.message : String(caught));
+        setCancelPhase("error");
       }
-
-      updateTask((item) => ({
-        ...item,
-        payoutStatus: "Payout đã gửi on-chain",
-        payoutSignature: payoutResult.signature,
-        payoutExplorerTxUrl: payoutResult.explorerTxUrl,
-        payoutSlot: payoutResult.slot,
-        payoutAccounts: payoutResult.accounts,
-        payoutIsSimulated: false,
-        ...indexMetadata,
-      }));
-      setPayoutPhase("success");
     } catch (caught) {
-      setPayoutPhase("error");
-      setPayoutError(mapSolanaError(caught));
-    }
-  }
-
-  function validateDraftPublish(item: RequestorTask) {
-    const missing: string[] = [];
-    const chainTaskId = readStoredOnChainTaskId(item).trim();
-    const submissionDeadline = item.submissionDeadline
-      ? new Date(item.submissionDeadline)
-      : null;
-    const votingDeadline = item.votingDeadline
-      ? new Date(item.votingDeadline)
-      : null;
-
-    if (!chainTaskId || !/^\d+$/.test(chainTaskId))
-      missing.push("onChainTaskId numeric");
-    if (!item.tokenMint?.trim()) missing.push("tokenMint");
-    if (!item.requestorTokenAccount?.trim())
-      missing.push("requestorTokenAccount");
-    if (!Number.isFinite(item.rewardAmount) || item.rewardAmount <= 0)
-      missing.push("rewardAmount > 0");
-    if (
-      item.workerStakeAmount === undefined ||
-      item.workerStakeAmount === null ||
-      !Number.isFinite(item.workerStakeAmount)
-    )
-      missing.push("workerStakeAmount");
-    if (
-      item.requiredJudgesM === undefined ||
-      !Number.isFinite(item.requiredJudgesM) ||
-      item.requiredJudgesM <= 0
-    )
-      missing.push("requiredJudgesM > 0");
-    if (
-      item.approvalThresholdN === undefined ||
-      !Number.isFinite(item.approvalThresholdN) ||
-      item.approvalThresholdN <= 0
-    )
-      missing.push("approvalThresholdN > 0");
-    if (!submissionDeadline || Number.isNaN(submissionDeadline.getTime()))
-      missing.push("submissionDeadline hợp lệ");
-    if (!votingDeadline || Number.isNaN(votingDeadline.getTime())) {
-      missing.push("votingDeadline hợp lệ");
-    } else if (
-      submissionDeadline &&
-      !Number.isNaN(submissionDeadline.getTime()) &&
-      votingDeadline.getTime() <= submissionDeadline.getTime()
-    ) {
-      missing.push("votingDeadline sau submissionDeadline");
-    }
-    if (
-      !isAllowedStorageUri(
-        item.publicMetadataUri ?? "",
-        PUBLIC_METADATA_URI_PREFIXES
-      )
-    )
-      missing.push("publicMetadataUri hợp lệ");
-    if (
-      !isAllowedStorageUri(
-        item.encryptedTaskDetailUri ?? "",
-        ENCRYPTED_DETAIL_URI_PREFIXES
-      )
-    )
-      missing.push("encryptedTaskDetailUri hợp lệ");
-
-    return { chainTaskId, submissionDeadline, votingDeadline, missing };
-  }
-
-  async function publishDraftOnChain() {
-    if (!task) return;
-    setActionError("");
-    setMissingFields([]);
-    setActionStatus("idle");
-
-    const validation = validateDraftPublish(task);
-    if (validation.missing.length) {
-      setMissingFields(validation.missing);
-      setActionStatus("error");
-      return;
-    }
-
-    if (!wallet || !publicKey) {
-      setActionError(
-        "Connect wallet trước khi publish draft lên Solana Devnet."
-      );
-      setActionStatus("error");
-      return;
-    }
-
-    setActionStatus("publishing");
-    try {
-      const proofResult = await initializeTask(wallet, {
-        taskId: validation.chainTaskId,
-        tokenMint: task.tokenMint!.trim(),
-        requestorTokenAccount: task.requestorTokenAccount!.trim(),
-        bountyAmount: String(task.rewardAmount),
-        workerStakeAmount: String(task.workerStakeAmount),
-        requiredJudgesM: task.requiredJudgesM!,
-        approvalThresholdN: task.approvalThresholdN!,
-        submissionDeadline: validation.submissionDeadline!,
-        votingDeadline: validation.votingDeadline!,
-        publicMetadataUri: task.publicMetadataUri!.trim(),
-        encryptedTaskDetailUri: task.encryptedTaskDetailUri!.trim(),
-      });
-
-      let indexMetadata: Pick<
-        RequestorTask,
-        "indexStatus" | "indexedSlot" | "indexError"
-      >;
-      setActionStatus("indexing");
-      try {
-        const indexed = await indexTaskAfterTransaction({
-          taskId: validation.chainTaskId,
-          signature: proofResult.signature,
-          instruction: "initialize_task",
-          actor: publicKey.toBase58(),
-          slot: proofResult.slot,
-        });
-        indexMetadata = {
-          indexStatus: "indexed",
-          indexedSlot: indexed.indexedSlot,
-          indexError: undefined,
-        };
-      } catch (indexCaught) {
-        indexMetadata = {
-          indexStatus: "index_failed",
-          indexedSlot: undefined,
-          indexError:
-            indexCaught instanceof Error
-              ? indexCaught.message
-              : String(indexCaught),
-        };
-      }
-
-      updateTask((item) => ({
-        ...item,
-        status: "Open",
-        escrowStatus: "Phần thưởng đã khóa trong escrow",
-        signature: proofResult.signature,
-        slot: proofResult.slot,
-        explorerTxUrl: proofResult.explorerTxUrl,
-        taskPda: proofResult.taskPda,
-        escrowTokenVault:
-          typeof proofResult.escrowTokenVault === "string"
-            ? proofResult.escrowTokenVault
-            : undefined,
-        nftAsset:
-          typeof proofResult.nftAsset === "string"
-            ? proofResult.nftAsset
-            : undefined,
-        accounts: proofResult.accounts,
-        isSimulated: proofResult.isSimulated,
-        ...indexMetadata,
-      }));
-      setActionStatus("success");
-    } catch (caught) {
-      setActionStatus("error");
-      setActionError(mapSolanaError(caught));
+      setCancelError(mapSolanaError(caught));
+      setCancelPhase("error");
     }
   }
 
   if (isLoading) {
-    return (
-      <RequestorPageFrame>
-        <SoftCard className="p-5 font-black">Đang tải dữ liệu...</SoftCard>
-      </RequestorPageFrame>
-    );
+    return <RequestorPageFrame><SoftCard className="p-5 font-black">Loading indexed tasks...</SoftCard></RequestorPageFrame>;
+  }
+  if (!task) {
+    return <RequestorPageFrame><EmptyState title="Task is not available in the indexed requestor data." /></RequestorPageFrame>;
   }
 
-  if (!task) {
-    return (
-      <RequestorPageFrame>
-        <EmptyState title="Không thể tải dữ liệu. Vui lòng thử lại." />
-      </RequestorPageFrame>
-    );
-  }
+  const metadataHref = publicUriHref(task.publicMetadataUri);
+  const cancelling = ["preparing", "sending", "confirming", "indexing"].includes(cancelPhase);
+  const canCancel = task.status === "Open" && Boolean(wallet && publicKey) && task.requestor === publicKey?.toBase58() && /^\d+$/.test(readStoredOnChainTaskId(task).trim());
+  const submissionVisible = Boolean(task.encryptedSubmissionUri) || ["Submitted", "Completed", "Failed", "Inconclusive"].includes(task.status);
+  const submissionHref = publicUriHref(task.encryptedSubmissionUri);
 
   return (
     <RequestorPageFrame>
-      <Card tone="requestor" className="p-5">
-        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+      <div className="flex items-center gap-3">
+        <Button asChild variant="secondary" size="sm"><Link href="/requestor/tasks"><ArrowLeft className="size-4" />Back to tasks</Link></Button>
+      </div>
+      <Card tone="requestor" className="p-5 sm:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <StatusBadge status={task.status} />
-              <Badge>{task.id}</Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-3xl font-black">Task #{shortTaskId(task.id)}</h1>
+              <span className={`rounded-full border px-3 py-1 text-sm font-bold ${getStatusBadgeColor(task.status)}`}>{requestorStatusLabels[task.status]}</span>
             </div>
-            <h1 className="text-3xl font-black">{task.title}</h1>
-            <p className="mt-2 max-w-3xl font-bold">{task.shortDescription}</p>
+            <p className="mt-2 font-bold">Created: {formatDate(task.createdAt)}</p>
           </div>
-          <div className="grid gap-2 font-bold md:grid-cols-3 lg:text-right">
-            <p>Thưởng: {formatCurrency(task.rewardAmount, task.token)}</p>
-            <p>Hạn nộp: {formatDate(task.deadline)}</p>
-            <p>{task.network}</p>
-          </div>
+          <Badge>{task.onChainTaskId ?? "Draft"}</Badge>
+        </div>
+      </Card>
+      <Card tone="requestor" className="p-5 sm:p-6">
+        <h2 className="text-2xl font-black">Financial summary & requirements</h2>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <SoftCard className="p-4"><p className="text-xs font-black uppercase">Bounty</p><p className="mt-1 text-2xl font-black">{formatCurrency(task.rewardAmount, task.token)}</p></SoftCard>
+          <SoftCard className="p-4"><p className="text-xs font-black uppercase">Required worker stake</p><p className="mt-1 text-2xl font-black">{task.workerStakeAmount ?? 0} SOL</p></SoftCard>
+          <SoftCard className="p-4"><p className="text-xs font-black uppercase">Submission deadline</p><p className="mt-1 font-bold">{formatDate(task.submissionDeadline ?? task.deadline)}</p></SoftCard>
+          <SoftCard className="p-4"><p className="text-xs font-black uppercase">Voting deadline</p><p className="mt-1 font-bold">{formatDate(task.votingDeadline ?? task.deadline)}</p></SoftCard>
+        </div>
+        <div className="mt-4 border-t-2 border-slate-950 pt-4">
+          <p className="text-xs font-black uppercase">Public task requirements</p>
+          <p className="mt-1 font-bold">The public task document is available through the safe action below.</p>
+          {metadataHref ? <Button asChild variant="secondary" size="sm" className="mt-3"><a href={metadataHref} target="_blank" rel="noopener noreferrer">Open public metadata</a></Button> : null}
         </div>
       </Card>
       <DataSourceWarning message={sourceWarning} />
-
       <Card tone="requestor" className="p-5 sm:p-6">
-        <h2 className="mb-4 text-2xl font-black lg:text-3xl">
-          Timeline trạng thái task
-        </h2>
-        <div className="grid gap-3 md:grid-cols-6">
-          {requestorStatusOrder.map((status) => {
-            const active =
-              requestorStatusOrder.indexOf(status) <=
-              requestorStatusOrder.indexOf(task.status);
-            return (
-              <div
-                key={status}
-                className={cn(
-                  "rounded-lg border-2 border-slate-950 bg-white p-3 font-black",
-                  active && "bg-[#79F2C0]"
-                )}
-              >
-                {requestorStatusLabels[status]}
-              </div>
-            );
-          })}
-        </div>
+        <h2 className="text-2xl font-black">Contextual action</h2>
+        {task.status === "Draft" ? <p className="mt-3 font-bold">This is a wallet-scoped draft. Publish it through the create workflow; local storage cannot promote it to an on-chain task.</p> : null}
+        {canCancel ? <div className="mt-3 grid gap-3"><p className="font-bold">No worker has accepted this task.</p><Button tone="requestor" disabled={cancelling} onClick={() => setCancelConfirmationOpen(true)}>{cancelling ? "Cancelling on-chain..." : "Cancel open task"}</Button>{cancelConfirmationOpen ? <SoftCard className="grid gap-3 border-rose-700 p-4"><p className="font-black">Cancel Task #{shortTaskId(task.id)}?</p><p className="font-bold">The bounty will return from escrow to your requestor token account. This cannot be undone after confirmation.</p><div className="flex gap-2"><Button variant="secondary" disabled={cancelling} onClick={() => setCancelConfirmationOpen(false)}>Go back</Button><Button tone="requestor" disabled={cancelling} onClick={() => { setCancelConfirmationOpen(false); void cancelOpenTaskOnChain(); }}>Cancel task & refund</Button></div></SoftCard> : null}{cancelPhase !== "idle" ? <SoftCard className="p-3 font-bold"><p>Cancellation: {cancelPhase}</p>{cancelError ? <p className="mt-1 text-rose-700">{cancelError}</p> : null}{cancelIndexError ? <p className="mt-1 text-amber-700">Transaction is confirmed but indexing needs retry: {cancelIndexError}</p> : null}</SoftCard> : null}</div> : null}
+        {task.status !== "Draft" && task.status !== "Open" ? <p className="mt-3 font-bold">This task is already in the protocol lifecycle. Its state, worker, submission, and settlement outcome are read from the indexed on-chain snapshot.</p> : null}
       </Card>
-
-      <Card tone="requestor" className="p-5 sm:p-6">
-        <h2 className="mb-3 text-2xl font-black lg:text-3xl">
-          Proof & Smart Contract Accounts
-        </h2>
-        {!task.signature && !task.taskPda ? (
-          <SoftCard className="p-5 font-bold">
-            <p>Chưa publish on-chain.</p>
-            {task.status === "Draft" ? (
-              <p className="mt-1">
-                Publish sẽ tạo escrow và task PDA trên Solana Devnet.
-              </p>
-            ) : null}
-          </SoftCard>
-        ) : (
-          <div className="grid gap-3">
-            <IndexStatusNotice task={task} />
-            <div className="grid gap-3 md:grid-cols-2">
-              <ProofValue
-                label="Program ID"
-                value={task.programId ?? PROGRAM_ID.toBase58()}
-                href={explorerAccountUrl(
-                  task.programId ?? PROGRAM_ID.toBase58()
-                )}
-              />
-              <ProofValue label="RPC" value={RPC_URL} />
-              <ProofValue label="Network" value="Solana Devnet" />
-              <ProofValue
-                label="isSimulated"
-                value={task.isSimulated ?? false}
-              />
-              <ProofValue
-                label="Signature"
-                value={task.signature}
-                href={task.explorerTxUrl}
-              />
-              <ProofValue label="Slot" value={task.slot} />
-              <ProofValue
-                label="taskPda"
-                value={task.taskPda}
-                href={
-                  task.taskPda ? explorerAccountUrl(task.taskPda) : undefined
-                }
-              />
-              <ProofValue
-                label="escrowTokenVault"
-                value={task.escrowTokenVault}
-                href={
-                  task.escrowTokenVault
-                    ? explorerAccountUrl(task.escrowTokenVault)
-                    : undefined
-                }
-              />
-              <ProofValue
-                label="nftAsset / Core Asset"
-                value={task.nftAsset}
-                href={
-                  task.nftAsset ? explorerAccountUrl(task.nftAsset) : undefined
-                }
-              />
-              <ProofValue
-                label="requestorTokenAccount"
-                value={task.requestorTokenAccount}
-                href={
-                  task.requestorTokenAccount
-                    ? explorerAccountUrl(task.requestorTokenAccount)
-                    : undefined
-                }
-              />
-              <ProofValue
-                label="tokenMint"
-                value={task.tokenMint}
-                href={
-                  task.tokenMint
-                    ? explorerAccountUrl(task.tokenMint)
-                    : undefined
-                }
-              />
-              <ProofValue label="onChainTaskId" value={task.onChainTaskId} />
-              <ProofValue
-                label="Payout signature"
-                value={task.payoutSignature}
-                href={task.payoutExplorerTxUrl}
-              />
-              <ProofValue label="Payout slot" value={task.payoutSlot} />
-            </div>
-
-            {task.accounts?.length ? (
-              <SoftCard className="p-5">
-                <h3 className="mb-2 text-xl font-black">Account links</h3>
-                <div className="grid gap-2 font-bold md:grid-cols-2">
-                  {task.accounts.map((account) => (
-                    <p key={`${account.label}-${account.address}`}>
-                      <span className="font-black">{account.label}: </span>
-                      <ExplorerLink
-                        href={account.url}
-                        value={account.address}
-                      />
-                    </p>
-                  ))}
-                </div>
-              </SoftCard>
-            ) : null}
-
-            {task.payoutAccounts?.length ? (
-              <SoftCard className="p-5">
-                <h3 className="mb-2 text-xl font-black">
-                  Payout account links
-                </h3>
-                <div className="grid gap-2 font-bold md:grid-cols-2">
-                  {task.payoutAccounts.map((account) => (
-                    <p key={`payout-${account.label}-${account.address}`}>
-                      <span className="font-black">{account.label}: </span>
-                      <ExplorerLink
-                        href={account.url}
-                        value={account.address}
-                      />
-                    </p>
-                  ))}
-                </div>
-              </SoftCard>
-            ) : null}
-          </div>
-        )}
-      </Card>
-
-      <div className="grid gap-5 lg:grid-cols-[1fr_380px]">
-        <div className="grid gap-5">
-          <Card tone="requestor" className="p-5 sm:p-6">
-            <h2 className="mb-3 text-2xl font-black lg:text-3xl">
-              Bài nộp của worker
-            </h2>
-            {submissions.length ? (
-              <>
-                <SubmissionList submissions={visibleSubmissions} />
-                <div className="mt-3">
-                  <Pagination
-                    page={safePage}
-                    pageSize={submissionPageSize}
-                    total={submissions.length}
-                    onPageChange={setSubmissionPage}
-                    onPageSizeChange={(value) => {
-                      setSubmissionPageSize(value);
-                      setSubmissionPage(1);
-                    }}
-                  />
-                </div>
-              </>
-            ) : (
-              <EmptyState title="Chưa có submission" />
-            )}
-          </Card>
-
-          <Card tone="requestor" className="p-5 sm:p-6">
-            <h2 className="mb-3 text-2xl font-black lg:text-3xl">
-              Kết quả chấm
-            </h2>
-            {task.result ? (
-              <SoftCard className="grid gap-2 p-5 font-bold">
-                <p>Điểm: {task.result.score}</p>
-                <p>Quyết định: {task.result.decision}</p>
-                <p>Nhận xét: {task.result.comment}</p>
-              </SoftCard>
-            ) : (
-              <EmptyState title="Chưa có kết quả chấm" />
-            )}
-          </Card>
+      {submissionVisible ? <Card tone="requestor" className="p-5 sm:p-6"><h2 className="text-2xl font-black">Submission</h2><p className="mt-2 font-bold">Worker: {task.worker ? shortTaskId(task.worker) : "Not assigned"}</p>{submissionHref ? <Button asChild variant="secondary" size="sm" className="mt-3"><a href={submissionHref} target="_blank" rel="noopener noreferrer">Open submission</a></Button> : task.encryptedSubmissionUri ? <p className="mt-3 font-bold">The submission has been encrypted and recorded on-chain.</p> : <p className="mt-3 font-bold">No submission has been recorded on-chain.</p>}</Card> : null}
+      <details className="rounded-lg border-2 border-slate-950 bg-white p-5">
+        <summary className="cursor-pointer font-black">On-chain details (Developer)</summary>
+        <div className="mt-4">
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <ProofValue label="Task PDA" value={task.taskPda} href={task.taskPda ? explorerAccountUrl(task.taskPda) : undefined} />
+          <ProofValue label="Escrow token vault" value={task.escrowTokenVault} href={task.escrowTokenVault ? explorerAccountUrl(task.escrowTokenVault) : undefined} />
+          <ProofValue label="Transaction" value={task.signature} href={task.explorerTxUrl} />
+          <ProofValue label="Indexed slot" value={task.indexedSlot ?? task.slot} />
+          <ProofValue label="Encrypted submission URI" value={task.encryptedSubmissionUri} />
+          <ProofValue label="Assigned judges" value={task.judges.map((judge) => judge.wallet).join(", ")} />
         </div>
-
-        <div className="grid gap-5">
-          <Card tone="requestor" className="p-5 sm:p-6">
-            <h2 className="mb-3 text-2xl font-black lg:text-3xl">
-              Escrow phần thưởng
-            </h2>
-            <div className="grid gap-2 font-bold">
-              <SoftCard className="p-4">
-                Số thưởng: {formatCurrency(task.rewardAmount, task.token)}
-              </SoftCard>
-              <SoftCard className="p-4">
-                Trạng thái escrow: {task.escrowStatus}
-              </SoftCard>
-              <SoftCard className="p-4">
-                Trạng thái payout: {task.payoutStatus}
-              </SoftCard>
-            </div>
-          </Card>
-
-          <Card tone="requestor" className="p-5 sm:p-6">
-            <h2 className="mb-3 text-2xl font-black lg:text-3xl">
-              Người chấm được chọn
-            </h2>
-            <div className="grid gap-4">
-              {task.judges.length ? (
-                task.judges.map((judge) => (
-                  <SoftCard key={judge.id} className="p-4 font-bold">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <strong>{judge.name}</strong>
-                        <p>{judgeStatusLabels[judge.status ?? "Ready"]}</p>
-                      </div>
-                      <Badge>{judge.reviewProgress ?? 0}%</Badge>
-                    </div>
-                    <div className="mt-2 h-2 rounded-full border border-slate-950 bg-white">
-                      <div
-                        className="h-full rounded-full bg-[#79F2C0]"
-                        style={{ width: `${judge.reviewProgress ?? 0}%` }}
-                      />
-                    </div>
-                  </SoftCard>
-                ))
-              ) : (
-                <EmptyState title="Chưa chọn người chấm" />
-              )}
-            </div>
-          </Card>
-
-          <Card tone="requestor" className="p-5 sm:p-6">
-            <h2 className="mb-3 text-2xl font-black lg:text-3xl">Hành động</h2>
-            <div className="flex flex-wrap gap-3">
-              {task.status === "Draft" ? (
-                <>
-                  <Button variant="secondary">Chỉnh sửa</Button>
-                  <Button
-                    tone="requestor"
-                    disabled={
-                      actionStatus === "publishing" ||
-                      actionStatus === "indexing"
-                    }
-                    onClick={publishDraftOnChain}
-                  >
-                    {actionStatus === "publishing"
-                      ? "Đang đăng..."
-                      : actionStatus === "indexing"
-                      ? "Đang lưu MongoDB..."
-                      : "Đăng task"}
-                  </Button>
-                </>
-              ) : null}
-              {task.status === "Submitted" || task.status === "Judged" ? (
-                <Button variant="secondary">Xem kết quả</Button>
-              ) : null}
-              {task.status === "Judged" ? (
-                <div className="grid w-full gap-3">
-                  <SoftCard className="grid gap-3 p-3">
-                    <div className="grid gap-2 break-all text-sm font-bold">
-                      <p>
-                        onChainTaskId:{" "}
-                        {payoutChainTaskId || "Chưa có onChainTaskId"}
-                      </p>
-                      <p>taskPda: {task.taskPda || "Chưa có taskPda"}</p>
-                      <p>tokenMint: {task.tokenMint || "Chưa có tokenMint"}</p>
-                      <p>
-                        worker wallet:{" "}
-                        {task.worker ||
-                          "Chưa có worker wallet trong Mongo/indexed data"}
-                      </p>
-                    </div>
-                    <Field>
-                      <FieldLabel>Worker token account</FieldLabel>
-                      <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-                        <Input
-                          className="min-w-0"
-                          disabled={isPayoutRunning}
-                          value={workerTokenAccount}
-                          onChange={(event) =>
-                            setWorkerTokenAccount(event.target.value)
-                          }
-                        />
-                        <Button
-                          variant="secondary"
-                          disabled={
-                            isPayoutRunning || !task.worker || !task.tokenMint
-                          }
-                          onClick={deriveWorkerPayoutAta}
-                        >
-                          Derive worker ATA
-                        </Button>
-                      </div>
-                      {!task.worker ? (
-                        <p className="text-sm font-bold">
-                          Chưa có worker wallet từ dữ liệu on-chain/indexed;
-                          nhập Worker token account thủ công nếu bạn đã biết tài
-                          khoản nhận token.
-                        </p>
-                      ) : null}
-                    </Field>
-                    <Field>
-                      <FieldLabel>Requestor token account</FieldLabel>
-                      <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-                        <Input
-                          className="min-w-0"
-                          disabled={isPayoutRunning}
-                          value={requestorPayoutTokenAccount}
-                          onChange={(event) =>
-                            setRequestorPayoutTokenAccount(event.target.value)
-                          }
-                        />
-                        <Button
-                          variant="secondary"
-                          disabled={
-                            isPayoutRunning || !publicKey || !task.tokenMint
-                          }
-                          onClick={deriveRequestorPayoutAta}
-                        >
-                          Derive requestor ATA
-                        </Button>
-                      </div>
-                    </Field>
-                    {payoutDisabledReason ? (
-                      <p className="text-sm font-black text-rose-700">
-                        {payoutDisabledReason}
-                      </p>
-                    ) : null}
-                  </SoftCard>
-                  <Button
-                    tone="requestor"
-                    disabled={
-                      isPayoutRunning || !payoutEligible || !hasPayoutChainData
-                    }
-                    onClick={completePayoutOnChain}
-                  >
-                    <Coins className="size-4" />
-                    {isPayoutRunning ? "Đang payout..." : "Hoàn tất payout"}
-                  </Button>
-                </div>
-              ) : null}
-              {task.status === "Completed" ? (
-                <Button variant="secondary">Xem trạng thái payout</Button>
-              ) : null}
-            </div>
-            {payoutPhase !== "idle" || payoutError ? (
-              <SoftCard className="mt-3 p-3 font-bold">
-                {payoutPhaseLabel(payoutPhase) ? (
-                  <p>Transaction status: {payoutPhaseLabel(payoutPhase)}</p>
-                ) : null}
-                {payoutPhase === "confirming" ? (
-                  <p className="mt-1 text-sm">
-                    Wallet transaction sent; waiting for Devnet confirmation.
-                  </p>
-                ) : null}
-                {payoutPhase === "success" ? (
-                  <p className="mt-1 text-sm">
-                    Payout proof đã lưu local. MongoDB index là nguồn trạng thái
-                    chính khi refresh.
-                  </p>
-                ) : null}
-                {task.payoutSignature ? (
-                  <p className="mt-1 break-all text-sm">
-                    Payout tx:{" "}
-                    <ExplorerLink
-                      href={task.payoutExplorerTxUrl ?? ""}
-                      value={task.payoutSignature}
-                    />
-                  </p>
-                ) : null}
-                {payoutError ? (
-                  <p className="mt-1 break-all text-sm text-rose-700">
-                    {payoutError}
-                  </p>
-                ) : null}
-              </SoftCard>
-            ) : null}
-            {task.status === "Draft" &&
-            (actionStatus !== "idle" ||
-              actionError ||
-              missingFields.length > 0) ? (
-              <SoftCard className="mt-3 p-3 font-bold">
-                {actionStatus === "publishing" ? (
-                  <p>Đang gửi initializeTask lên Solana Devnet...</p>
-                ) : null}
-                {actionStatus === "indexing" ? (
-                  <p>Transaction confirmed. Đang lưu MongoDB index...</p>
-                ) : null}
-                {actionStatus === "success" ? (
-                  <p>Publish on-chain thành công. Proof đã được lưu.</p>
-                ) : null}
-                {missingFields.length ? (
-                  <div>
-                    <p className="font-black">Draft thiếu dữ liệu on-chain:</p>
-                    <ul className="mt-2 list-disc space-y-1 pl-5">
-                      {missingFields.map((field) => (
-                        <li key={field}>{field}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-                {actionError ? (
-                  <p className="break-all text-rose-700">{actionError}</p>
-                ) : null}
-              </SoftCard>
-            ) : null}
-          </Card>
+        <IndexStatusNotice task={task} />
         </div>
-      </div>
+      </details>
     </RequestorPageFrame>
   );
 }
-
 function SubmissionList({
   submissions,
   compact = false,
@@ -2506,132 +1769,24 @@ function SubmissionList({
 }
 
 export function RequestorSubmissionsPage() {
-  const { tasks, isLoading, sourceWarning } = useRequestorTasks();
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<SubmissionStatus | "all">("all");
-  const [sortBy, setSortBy] = useState<"newest" | "deadline">("newest");
-  const submissions = useMemo(() => getAllSubmissions(tasks), [tasks]);
-  const filteredSubmissions = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return [...submissions]
-      .filter((submission) => {
-        const matchesStatus = status === "all" || submission.status === status;
-        const matchesSearch =
-          !query ||
-          submission.title.toLowerCase().includes(query) ||
-          submission.taskTitle.toLowerCase().includes(query) ||
-          submission.workerName.toLowerCase().includes(query) ||
-          submission.id.toLowerCase().includes(query);
-        return matchesStatus && matchesSearch;
-      })
-      .sort((a, b) => {
-        const field = sortBy === "deadline" ? "deadline" : "submittedAt";
-        const direction = sortBy === "deadline" ? 1 : -1;
-        return (
-          direction *
-          (new Date(a[field]).getTime() - new Date(b[field]).getTime())
-        );
-      });
-  }, [submissions, search, status, sortBy]);
-  const pagination = usePagination(filteredSubmissions);
-  const tabs: Array<SubmissionStatus | "all"> = [
-    "all",
-    "PendingJudgeReview",
-    "Accepted",
-    "Rejected",
-    "NeedsRevision",
-  ];
-
   return (
     <RequestorPageFrame>
       <Card tone="requestor" className="p-5">
         <SectionHeader
           eyebrow="Requestor"
           title="Theo dõi submission"
-          description="Lọc submission theo task, worker, trạng thái review và deadline."
+          description="Submissions được quản lý từng task. Vui lòng truy cập chi tiết task để xem submission."
         />
       </Card>
-
-      <Card tone="requestor" className="grid gap-4 p-5">
-        <div className="flex flex-wrap gap-2">
-          {tabs.map((item) => (
-            <Button
-              key={item}
-              tone={status === item ? "requestor" : "default"}
-              variant={status === item ? "default" : "secondary"}
-              size="sm"
-              onClick={() => setStatus(item)}
-            >
-              {item === "all" ? "Tất cả" : submissionStatusLabels[item]}
-            </Button>
-          ))}
-        </div>
-        <div className="grid gap-4 lg:grid-cols-[1fr_240px_240px]">
-          <Field>
-            <FieldLabel>Tìm theo task/submission/worker</FieldLabel>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-3 size-4" />
-              <Input
-                className="pl-9"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Nhập task, submission hoặc worker"
-              />
-            </div>
-          </Field>
-          <Field>
-            <FieldLabel>Lọc theo trạng thái</FieldLabel>
-            <select
-              className="min-h-10 rounded-lg border-2 border-slate-950 bg-[#FFFDF3] px-3 py-2 font-bold outline-none focus:bg-white focus-visible:ring-4 focus-visible:ring-[var(--role-requestor)] focus-visible:ring-offset-2"
-              value={status}
-              onChange={(event) =>
-                setStatus(event.target.value as SubmissionStatus | "all")
-              }
-            >
-              <option value="all">Tất cả trạng thái</option>
-              {Object.entries(submissionStatusLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field>
-            <FieldLabel>Sắp xếp</FieldLabel>
-            <select
-              className="min-h-10 rounded-lg border-2 border-slate-950 bg-[#FFFDF3] px-3 py-2 font-bold outline-none focus:bg-white focus-visible:ring-4 focus-visible:ring-[var(--role-requestor)] focus-visible:ring-offset-2"
-              value={sortBy}
-              onChange={(event) =>
-                setSortBy(event.target.value as "newest" | "deadline")
-              }
-            >
-              <option value="newest">Mới nhất</option>
-              <option value="deadline">Hạn gần nhất</option>
-            </select>
-          </Field>
-        </div>
-      </Card>
-
-      {isLoading ? (
-        <SoftCard className="p-5 font-black">Đang tải dữ liệu...</SoftCard>
-      ) : null}
-      <DataSourceWarning message={sourceWarning} />
-      {!isLoading && filteredSubmissions.length === 0 ? (
-        <EmptyState title="Chưa có submission phù hợp" />
-      ) : (
-        <>
-          <Card tone="requestor" className="p-5 sm:p-6">
-            <SubmissionList submissions={pagination.paginatedItems} />
-          </Card>
-          <Pagination
-            page={pagination.page}
-            pageSize={pagination.pageSize}
-            total={filteredSubmissions.length}
-            onPageChange={pagination.setPage}
-            onPageSizeChange={pagination.setPageSize}
-          />
-        </>
-      )}
+      <EmptyState
+        title="Hãy vào chi tiết task để xem submission"
+        action={
+          <Button asChild tone="requestor">
+            <Link href="/requestor/tasks">Quay lại danh sách task</Link>
+          </Button>
+        }
+      />
     </RequestorPageFrame>
   );
 }
+

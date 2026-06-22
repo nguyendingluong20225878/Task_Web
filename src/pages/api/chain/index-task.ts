@@ -160,6 +160,13 @@ function mapError(caught: unknown) {
       message: "Transaction signature is not confirmed on Solana Devnet.",
     };
   }
+  if (/mongo|econnrefused|server selection/i.test(message)) {
+    return {
+      status: 503,
+      code: "MONGODB_UNAVAILABLE",
+      message: "MongoDB is unavailable while indexing the confirmed task snapshot.",
+    };
+  }
   return {
     status: 500,
     code: "INDEX_TASK_FAILED",

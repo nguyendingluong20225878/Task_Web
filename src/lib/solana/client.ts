@@ -52,6 +52,7 @@ export type TxProof = {
   signature: string;
   explorerTxUrl: string;
   slot?: number;
+  confirmationStatus?: "confirmed" | "pending";
   isSimulated: false;
 };
 
@@ -152,20 +153,42 @@ export function getAssociatedTokenAddress(owner: PublicKey, mint: PublicKey) {
 }
 
 export async function confirmSignature(signature: string): Promise<number | undefined> {
-  const latestBlockhash = await connection.getLatestBlockhash(commitment);
-  await connection.confirmTransaction({ signature, ...latestBlockhash }, commitment);
-  const status = await connection.getSignatureStatuses([signature]);
-  return status.value[0]?.slot;
+  let status;
+  try {
+    status = await connection.getSignatureStatuses([signature], {
+      searchTransactionHistory: true,
+    });
+  } catch {
+    return undefined;
+  }
+
+  const value = status.value[0];
+  if (value?.err) {
+    throw new Error("Transaction failed on-chain: " + JSON.stringify(value.err));
+  }
+  if (!value || (value.confirmationStatus !== "confirmed" && value.confirmationStatus !== "finalized")) {
+    return undefined;
+  }
+  return value.slot;
 }
 
 export async function sendTransactionWithWallet(wallet: AnchorWalletLike, transaction: Transaction) {
   if (!wallet.publicKey) throw new Error("Connect Phantom first.");
   transaction.feePayer = wallet.publicKey;
-  transaction.recentBlockhash = (await connection.getLatestBlockhash(commitment)).blockhash;
+  const latestBlockhash = await connection.getLatestBlockhash(commitment);
+  transaction.recentBlockhash = latestBlockhash.blockhash;
   const signed = await wallet.signTransaction(transaction);
   const signature = await connection.sendRawTransaction(signed.serialize(), {
     preflightCommitment: commitment,
   });
+
+  const confirmation = await connection
+    .confirmTransaction({ signature, ...latestBlockhash }, commitment)
+    .catch(() => null);
+  if (confirmation?.value.err) {
+    throw new Error("Transaction failed on-chain: " + JSON.stringify(confirmation.value.err));
+  }
+
   const slot = await confirmSignature(signature);
   return { signature, slot };
 }
@@ -343,6 +366,7 @@ function proof(signature: string, slot?: number): TxProof {
     signature,
     slot,
     explorerTxUrl: explorerTxUrl(signature),
+    confirmationStatus: slot == null ? "pending" : "confirmed",
     isSimulated: false,
   };
 }
